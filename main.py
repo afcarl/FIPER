@@ -6,7 +6,7 @@ import tkFont
 
 window = Tk()
 
-
+#budos van
 im0 = Image.open('image\\background.jpg')
 tkimage = ImageTk.PhotoImage(im0)
 Label(window,image = tkimage).pack()
