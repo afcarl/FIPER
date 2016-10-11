@@ -30,6 +30,7 @@ def play_music():
 
 def close_quit_prompt():
 	
+	PlaySound('audio\\sfx\\button.wav', SND_ASYNC ) 
 	window.quit.destroy() 
 	place_menu_buttons()
 	
@@ -168,7 +169,7 @@ Label(window,image = tkimage).pack()
 window.iconbitmap('image\\icon.ico')
 window.title('FIPER')
 window.attributes('-fullscreen', True)
-window.bind('<Escape>',lambda e: quit_prompt() )
+#window.bind('<Escape>',lambda e: quit_prompt() )
 #window.configure(background='grey') # set background color	
 
 
