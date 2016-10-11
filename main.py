@@ -73,7 +73,6 @@ def quit_prompt():
 	
 def close_connect_window():
 
-	PlaySound('audio\\sfx\\button.wav', SND_ASYNC)
 	window.connect.destroy()
 	place_menu_buttons()
 	
