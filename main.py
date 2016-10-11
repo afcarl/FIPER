@@ -44,14 +44,11 @@ def ok_options_window():
 	place_menu_buttons()
 
 def quit_prompt():
-
 	window.quit_prompt = Toplevel(window)
 	window.quit_prompt.mainloop()
 	
 def connect_window():
-
 	hide_menu_buttons()
-	
 	window.connect = Toplevel(window)
 	window.connect.grab_set()
 	window.connect.overrideredirect(True)
@@ -70,9 +67,7 @@ def connect_window():
 	window.connect.mainloop()
 	
 def options_window():
-
 	hide_menu_buttons()
-	
 	window.options = Toplevel(window)
 	window.options.focus_force()
 	window.options.grab_set()
