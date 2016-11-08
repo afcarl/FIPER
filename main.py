@@ -1,196 +1,93 @@
-import sys
-from Tkinter import *
-from winsound import *
-from PIL import ImageTk, Image
-import tkFont
-from threading import Thread
-import pyglet
-import time
-from random import randint
+#!/usr/bin/python
+# main.py
+import wx
 
-window = Tk()
-
-################################### MUSIC PLAYER ################################
-
-def player_config():
-
-	player = pyglet.media.Player()
-	music_file = pyglet.media.load('audio\\music\\track01.mp3')
-	player.queue(music_file)
-	player.play()
-	pyglet.app.run()
-
-def play_music():
-
-	global sound_thread 
-	sound_thread = Thread(target=player_config)
-	sound_thread.start()
+class Frame(wx.Frame):
 	
-################################### QUIR PROMPT ##################################	
+	def __init__(self, title):
+		wx.Frame.__init__(self, None, title=title, pos=(150,150), size=(350,200))
+		self.configure_main_frame_geometry()
+		# Set Cursor Shape 
+		self.set_cursor()
+		
+	def configure_main_frame_geometry(self):
+		# Set Window FullScreen
+		self.ShowFullScreen(True)
+		# Get Screen Resolution
+		resolution = wx.DisplaySize()
+		width = resolution[0] 
+		height = resolution[1]
+		# Background Image Source ( and bitmap conversion ) 
+		image_file = 'image\\menu\\bgnd.jpg'
+		background = wx.Image(image_file, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
+		# Resize Background Image 
+		background = self.scale_bitmap(background, width, height)
+		# Set Background Image 
+		self.background = wx.StaticBitmap(self, -1, background, (0, 0))
+		
+	def scale_bitmap(self, bitmap, width, height):
+		image = wx.ImageFromBitmap(bitmap)
+		image = image.Scale(width, height, wx.IMAGE_QUALITY_HIGH)
+		result = wx.BitmapFromImage(image)
+		return result
+		
+	def set_cursor(self):
+		cursor_path = 'image\\menu\\cursor.ico'
+		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
+		self.SetCursor(cursor)
+	
+class custom_button(wx.PyControl):
 
-def close_quit_prompt():
-	
-	PlaySound('audio\\sfx\\button.wav', SND_ASYNC ) 
-	window.quit.destroy() 
-	place_menu_buttons()
-	
-def quit_prompt():
-	
-	hide_menu_buttons()
-	window.quit = Toplevel(window)
-	
-	window.quit.focus_force()
-	window.quit.grab_set()
-	
-	window.quit.overrideredirect(True)
-	window.quit.attributes('-alpha',0.7)
-	window.quit.geometry('600x400+600+300')
-	window.quit.configure(background='black')
-	
-	im_OK = Image.open('image\\menu\\ok_button.png')	
-	ok_button_image = ImageTk.PhotoImage(im_OK)
-	window.quit.yes_button = Button(window.quit, image=ok_button_image, command=exit_app )
-	window.quit.yes_button.place(relx=0.62, rely=0.7, height=50, width=150)
-	
-	im_CANCEL = Image.open('image\\menu\\cancel_button.png')	
-	cancel_button_image = ImageTk.PhotoImage(im_CANCEL)
-	window.quit.no_button = Button(window.quit, image=cancel_button_image, command=close_quit_prompt)
-	window.quit.no_button.place(relx=0.15, rely=0.7, height=50, width=150)
-	
-	window.quit.bind("<Escape>", lambda e: ( window.quit.destroy(), place_menu_buttons() )  )
-	window.quit.bind("<Return>", lambda e: exit_app()  )
-	
-	customFont = tkFont.Font(family="Helvetica", size=30, weight=tkFont.BOLD)
-	window.quit.text = Label(window.quit, text='ARE YOU SURE?', fg='red',bg ='black', font=customFont )
-	window.quit.text.place(relx=0.25, rely=0.3)
-	
-	
-	PlaySound('audio\\sfx\\button.wav', SND_ASYNC ) 
-	#exit_app()
-	
-	window.quit.mainloop()
-	
-################################## CONNECT WINDOW ################################x
-	
-def close_connect_window():
+    def __init__(self, parent, id, bmp, text, **kwargs):
+        wx.PyControl.__init__(self,parent, id, **kwargs)
 
-	window.connect.destroy()
-	place_menu_buttons()
-	
-def ok_connect_window():
+        self.Bind(wx.EVT_LEFT_DOWN, self._onMouseDown)
+        self.Bind(wx.EVT_LEFT_UP, self._onMouseUp)
+        self.Bind(wx.EVT_LEAVE_WINDOW, self._onMouseLeave)
+        self.Bind(wx.EVT_ENTER_WINDOW, self._onMouseEnter)
+        self.Bind(wx.EVT_ERASE_BACKGROUND,self._onEraseBackground)
+        self.Bind(wx.EVT_PAINT,self._onPaint)
 
-	PlaySound('audio\\sfx\\button.wav', SND_ASYNC)
-	window.connect.destroy()
-	place_menu_buttons()
-	
-def connect_window():
+        self._mouseIn = self._mouseDown = False
 
-	hide_menu_buttons()
-	window.connect = Toplevel(window)
-	
-	window.connect.grab_set()
-	window.connect.overrideredirect(True)
-	window.connect.attributes('-alpha',0.7)
-	window.connect.geometry("1720x880+100+100")
-	
-	window.connect.configure(background='black')
-	window.connect.focus_force()
-	window.connect.bind("<Escape>", lambda e: close_connect_window() ) # quit with escape button
-	window.connect.bind("<Return>", lambda e: ok_connect_window() ) # quit with escape button
-	
-	im_OK = Image.open('image\\menu\\ok_button.png')	
-	ok_button_image = ImageTk.PhotoImage(im_OK)
-	button_ok = Button(window.connect, image=ok_button_image, command=ok_connect_window )
-	button_ok.place(relx=0.85, rely=0.9, height=50, width=150)
-	
-	window.connect.mainloop()
-	
-#################################### OPTIONS WINDOW #############################	
+    def _on_mouse_enter(self, event):
+        self._mouseIn = True
 
-def close_options_window():
+    def _on_mouse_leave(self, event):
+        self._mouseIn = False
 
-	window.options.destroy()
-	place_menu_buttons()
-	
-def ok_options_window():
+    def _on_mouse_down(self, event):
+        self._mouseDown = True
 
-	PlaySound('audio\\sfx\\button.wav', SND_ASYNC)
-	window.options.destroy()
-	place_menu_buttons()
-	
-def options_window():
+    def _on_mouse_up(self, event):
+        self._mouseDown = False
+        self.sendButtonEvent()
 
-	hide_menu_buttons()
-	
-	window.options = Toplevel(window)
-	window.options.focus_force()
-	window.options.grab_set()
-	window.options.overrideredirect(True)
-	window.options.attributes('-alpha',0.7)
-	window.options.geometry("1720x880+100+100")
-	window.options.configure(background='black')
-	window.options.bind("<Escape>", lambda x: close_options_window() ) # quit with escape button
-	window.options.bind("<Return>", lambda x: ok_options_window() ) # quit with escape button
-	
-	im_OK = Image.open('image\\menu\\ok_button.png')	
-	ok_button_image = ImageTk.PhotoImage(im_OK)
-	button_ok = Button(window.options, image=ok_button_image, command = ok_options_window)
-	button_ok.place(relx=0.85, rely=0.9, height=50, width=150)
-	
-	window.options.mainloop()
+    def send_button_event(self):
+        event = wx.CommandEvent(wx.wxEVT_COMMAND_BUTTON_CLICKED, self.GetId())
+        event.SetInt(0)
+        event.SetEventObject(self)
+        self.GetEventHandler().ProcessEvent(event)
 
-###################################### MAIN WINDOW ##############################	
+    def _on_erase_blackground(self,event):
+        # 
+        pass
 
-def exit_app():
-
-	pyglet.app.exit() 
-	window.destroy()
-	
-def place_menu_buttons():
-
-	button_connect.place(relx=0.7, rely=0.3, height=100, width=450)
-	button_options.place(relx=0.7, rely=0.45, height=100, width=450)
-	button_exit.place(relx=0.7, rely=0.6, height=100, width=450)
-
-def hide_menu_buttons():
-
-	button_connect.place_forget()
-	button_options.place_forget()
-	button_exit.place_forget()
+    def _onPaint(self, event):
+        dc = wx.BufferedPaintDC(self)
+        dc.SetFont(self.GetFont())
+        dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
+        dc.Clear()
+        # draw whatever you want to draw
+        # draw glossy bitmaps e.g. dc.DrawBitmap
+        if self._mouseIn:
+            pass# on mouserover may be draw different bitmap
+        if self._mouseDown:
+            pass # draw different image text
+			
+app = wx.App()  
+top = Frame("FIPER")
+top.Show()
+app.MainLoop()
 
 
-screen_width = window.winfo_screenwidth()
-screen_height = window.winfo_screenheight()
-
-
-background_image = Image.open('image\\menu\\background.jpg')
-tkimage = ImageTk.PhotoImage(background_image)
-Label(window,image = tkimage).pack()
-window.iconbitmap('image\\icon.ico')
-window.title('FIPER')
-window.attributes('-fullscreen', True)
-#window.bind('<Escape>',lambda e: quit_prompt() )
-#window.configure(background='grey') # set background color	
-
-
-button_connect = lambda: ( PlaySound('audio\\sfx\\button.wav', SND_ASYNC), connect_window() ) 
-im1 = Image.open('image\\menu\\button1.png')
-button_connect_image = ImageTk.PhotoImage(im1)
-button_connect = Button(window, image=button_connect_image, cursor='cross', command=button_connect)
-
-
-button_options = lambda: ( PlaySound('audio\\sfx\\button.wav', SND_ASYNC ), options_window() ) 
-im2 = Image.open('image\\menu\\button2.png')
-button_options_image = ImageTk.PhotoImage(im2)
-button_options = Button(window, image=button_options_image, cursor='cross', command=button_options)
-
-
-im3 = Image.open('image\\menu\\button3.png')
-button_exit_image = ImageTk.PhotoImage(im3)
-button_exit = Button(window, image=button_exit_image, cursor='cross', command=quit_prompt)
-
-
-play_music()
-place_menu_buttons()
-
-window.mainloop()
