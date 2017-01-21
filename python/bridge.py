@@ -2,7 +2,7 @@ import socket as sck
 
 import numpy as np
 
-REMOTE = "192.168.1.2", 1234
+REMOTE = "127.0.0.1", 2345
 LOCAL = "127.0.0.1", 1234
 
 
