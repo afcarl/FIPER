@@ -57,8 +57,8 @@ class Frame(wx.Frame):
 		
 		# Define Labels
 		version = label.TransparentText(self,'Release: Alpha', (10,height-30), 'white', 16)
-		contact = label.TransparentText(self,'Contact:', (width-90,height-60), 'white', 16)
-		email = label.TransparentText(self,'gal.mateo@gmail.com', (width-225,height-30), 'white', 16)
+		contact = label.TransparentText(self,'Contact:', (width-110,height-60), 'white', 16)
+		email = label.TransparentText(self,'gal.mateo@gmail.com', (width-280,height-30), 'white', 16)
 		
 		# Place labels on the frame 
 		email.Show()
