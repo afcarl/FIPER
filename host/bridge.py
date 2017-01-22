@@ -2,29 +2,38 @@ import socket as sck
 
 import numpy as np
 
-REMOTE = "127.0.0.1", 2345
-LOCAL = "127.0.0.1", 1234
+from FIPER.generic import FRAMESIZE, STREAMPORT
 
 
-def generate_frames(address, port):
-    sock = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
-    sock.bind((address, port))
-    sock.listen(1)
+class CarInterface:
+    """
+    Implemented as a video stream CLIENT
+    """
 
-    conn, addr = sock.accept()
-    print "Connection from {}".format(addr)
+    def __init__(self, address):
+        self.connection = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
+        self.connection.connect((address, 1234))
 
-    while 1:
-        data = b""
-        while 1:
-            d = conn.recv(1024)
-            if d[-4:] == b"NULL":
-                data += d[:-4]
-                break
-            data += d
-        data = np.fromstring(data).reshape(640, 480, 3)
-        yield data
+    def get_stream(self):
+        data = []
+        slc = b" "
+        while slc[-1] != b"\0":
+            slc = self.connection.recv(1024)
+            data.append(slc)
+        data.append(slc[:-1])
+
+        frame = np.fromstring(b"".join(data)).reshape(640, 480, 3)
+        yield frame
+
 
 if __name__ == '__main__':
-    for array in generate_frames(*LOCAL):
-        print "Got array of shape", array.shape
+    from sys import argv
+
+    if len(argv) > 1:
+        ip = argv[1]
+    else:
+        ip = "127.0.0.1"
+
+    ifc = CarInterface(ip)
+    for pic in ifc.get_stream():
+        print "RECVD pic OF SHAPE", pic.shape
