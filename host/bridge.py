@@ -20,6 +20,7 @@ class CarInterface:
         while slc[-1] != b"\0":
             slc = self.connection.recv(1024)
             data.append(slc)
+        raise RuntimeError("Sorry, under construction")
         data.append(slc[:-1])
 
         frame = np.fromstring(b"".join(data)).reshape(640, 480, 3)
