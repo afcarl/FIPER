@@ -1,13 +1,14 @@
 from __future__ import print_function
 
-import socket
 import time
+import pickle
+import socket
 
 import numpy as np
 
 import cv2
 
-from FIPER.generic import FRAMESIZE, STREAMPORT
+from FIPER.generic import FRAMESIZE, STREAMPORT, TICK
 
 print("OpenCV version:", cv2.__version__)
 
@@ -41,11 +42,11 @@ class Car:
         # self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # 'tis UDP
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # 'tis TCP
         self.socket.bind((self.address, STREAMPORT))
-        self.out("BOUND TO {}:{}".format(self.ID, self.address, STREAMPORT))
+        self.out("BOUND TO {}:{}".format(self.address, STREAMPORT))
         self.out("Awaiting connection...")
         self.socket.listen(1)
         self.socket, adr = self.socket.accept()
-        self.out("CAR {}: Connection from", adr)
+        self.out("Connection from", adr)
 
     def dummy_move(self):
         """
@@ -75,30 +76,31 @@ class Car:
         if self.eye is None:
             self.eye = cv2.VideoCapture(0)  # device ID goes here
         # Do we do any image preprocessing on the car?
-        bframe = self.eye.read().tobytes() + b"\0"
-        self.push_frame(bframe)
+        while 1:
+            self.push_frame(self.eye.read().astype(int))
 
     def dummy_see(self):
         """Obtain a white noise frame"""
         self.out("Starting white noise stream...".format(self.ID))
         while 1:
-            bframe = np.random.randn(*FRAMESIZE).tobytes() + b"\0"
-            self.push_frame(bframe)
+            frame = (np.random.randn(*FRAMESIZE) * 255).astype(int)
+            self.push_frame(frame)
 
-    def push_frame(self, bframe):
+    def push_frame(self, ndarray):
         """
         Push a frame through the socket
 
-        :param bframe: binarized numpy array
+        :param ndarray: 3d numpy array of dtype: int
         :return:
         """
-        slices = (bframe[start:start+1024] for start in
-                  range(0, len(bframe), 1024))
+        serial = pickle.dumps(ndarray, protocol=0)
+        slices = (serial[start:start + 1024] for start in
+                  range(0, len(serial), 1024))
         for slc in slices:
             self.socket.send(slc)
+        self.out("Pushed array of shape", ndarray.shape)
 
     def emulate(self, display=True):
-        sleep = 1
         if display:
             from matplotlib import pyplot as plt
             plt.ion()
@@ -107,18 +109,18 @@ class Car:
             ax.set_xlim(0, XMAX)
             ax.set_ylim(0, YMAX)
         while 1:
-            self.dummy_move()
-            self.out("I am at ({:>6.2f}, {:>6.2f}), v = {v:>5.2f}".format(
-                *self.position, v=abs(self.velocity.sum())))
+            # self.dummy_move()
+            # self.out("I am at ({:>6.2f}, {:>6.2f}), v = {v:>5.2f}".format(
+            #     *self.position, v=abs(self.velocity.sum())))
             self.dummy_see()
             if display:
                 x, y = self.position
                 obj.set_xdata(x)
                 obj.set_ydata(y)
-                plt.pause(sleep)
+                plt.pause(TICK)
             else:
-                time.sleep(sleep)
+                time.sleep(TICK)
 
 if __name__ == '__main__':
-    lightning_mcqueen = Car(ID=95, address="192.168.1.5")
+    lightning_mcqueen = Car(ID=95, address="127.0.0.1")
     lightning_mcqueen.emulate(display=False)
