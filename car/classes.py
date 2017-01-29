@@ -35,21 +35,20 @@ class Car(object):
     Video frames are forwarded to a central server for further processing
     """
 
-    def __init__(self, ID):
+    def __init__(self, ID, address=None):
         self.ID = ID
         # self.eye = cv2.VideoCapture(0)
         self.eye = CaptureDeviceMocker
         self.rpm = 0
         self.msocket = None  # 4 message tranfer
+        self.server_ip = None  # if UPD is used for data transfer
 
-        # Infer the local IP address
-        tmpsck = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        tmpsck.connect(("8.8.8.8", 80))
-        self.address = tmpsck.getsockname()[0]
-        tmpsck.close()
+        # Try to infer the local IP address
+        if address is None:
+            address = my_ip()
+        self.address = address
 
         self.dsocket = socket.socket(socket.AF_INET, DPROTOCOL)
-        self.dsocket.bind((self.address, STREAMPORT))
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
@@ -59,8 +58,11 @@ class Car(object):
     def connect(self, server_ip):
         """Establishes connections with the server"""
 
+        # Read a single frame to infer the frame shape
         success, frame = self.eye.read()
         if not success:
+            # If read fails, we assume no capture device is connected
+            # and fall back to white noise streaming
             self.eye = CaptureDeviceMocker
             frame = self.eye.read()[1]
 
@@ -72,13 +74,6 @@ class Car(object):
         self.message(str(self.ID).encode(), t=0.5)
         self.message(str(frame.shape)[1:-1].replace(", ", "x").encode())
 
-        # Set up the stream socket and complete the connection
-        self.out("Waiting for UDP connection...")
-        self.dsocket.listen(1)
-        self.dsocket, dadr = self.dsocket.accept()
-        self.out("DSOCKET connected to {}:{}".format(dadr[0], STREAMPORT))
-        # assert dadr[0] == server_ip
-
     def see(self):
         """
         Obtain frames from the capture device via OpenCV.
@@ -88,13 +83,12 @@ class Car(object):
             success, frame = self.eye.read()
             serial = frame.astype(DTYPE).tobytes()
             for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
-                self.dsocket.send(slc)
+                self.dsocket.sendto(slc, (self.server_ip, STREAMPORT))
             self.out("Pushed array of shape: ", frame.shape)
 
     def message(self, m, t=0.):
         """Sends a bytes message through the message port"""
-        slices = (m[start:start+1024] for start in range(0, len(m), 1024))
-        for slc in slices:
+        for slc in (m[i:i + 1024] for i in range(0, len(m), 1024)):
             self.msocket.send(slc)
         self.msocket.send(b"ROGER")
         time.sleep(t)

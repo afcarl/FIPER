@@ -4,6 +4,8 @@ import time
 import threading as thr
 import socket as sck
 
+import cv2
+
 from FIPER.generic import *
 
 
@@ -38,20 +40,17 @@ class CarInterface(object):
 
     def get_stream(self):
         datalen = np.prod(self.framesize)
+        data = b""
         while 1:
-            data = b""
-            while len(data) != datalen:
+            while len(data) < datalen:
                 data += self.dsocket.recv(1024)
-            yield np.fromstring(data, dtype=DTYPE).reshape(self.framesize)
+            yield np.fromstring(data[:datalen], dtype=DTYPE).reshape(self.framesize)
+            data = data[datalen:]
 
     def display_stream(self):
-        from matplotlib import pyplot as plt
-        plt.ion()
-        obj = plt.imshow(np.zeros(self.framesize).astype(int), vmin=0, vmax=255)
         for pic in self.get_stream():
             self.out("Recieved frame of shape", pic.shape)
-            obj.set_data(pic)
-            plt.pause(TICK)
+            cv2.imshow("Stream", pic)
 
     def __repr__(self):
         return "CarInterface {} @ {}".format(self.car_ID, self.address)
@@ -69,10 +68,14 @@ class FleetHandler(object):
         print("SERVER: msocket bound to", ip)
 
         self.listener = thr.Thread(name="Listener", target=self.listen)
+        self.watcher = thr.Thread(name="Listener", target=self.watch)
 
-    def start(self):
+    def start_listening(self):
         self.listener.start()
         # self.listen()
+
+    def start_watching(self):
+        self.watcher.start()
 
     def listen(self):
         print("SERVER: Awaiting connections...")
@@ -82,13 +85,18 @@ class FleetHandler(object):
             print("SERVER: Received connection from", address)
             self.cars.append(CarInterface(conn, address))
 
-    def watch(self, car_no):
-        car = self.cars[car_no]
-        car.display_stream()
+    def watch(self):
+        while 1:
+            while not self.cars:
+                time.sleep(3)
+            car = self.cars[0]
+            print("SERVER: Watching Car:", car.car_ID)
+            car.display_stream()
 
 if __name__ == '__main__':
     server = FleetHandler("192.168.1.5")
-    server.start()
+    server.start_listening()
+    server.start_watching()
     while 1:
         time.sleep(3)
         print("OUTSIDE: Cars online:", len(server.cars))

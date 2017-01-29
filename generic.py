@@ -13,8 +13,8 @@ MESSAGEPORT = 1235
 TICK = .1
 
 # Data transfer network protocol
-# DPROTOCOL = socket.SOCK_DGRAM  # 'tis UDP
-DPROTOCOL = socket.SOCK_STREAM  # 'tis TCP
+DPROTOCOL = socket.SOCK_DGRAM  # 'tis UDP
+# DPROTOCOL = socket.SOCK_STREAM  # 'tis TCP
 
 # Message transfer network protocol
 MPROTOCOL = socket.SOCK_STREAM
@@ -32,4 +32,7 @@ def my_ip():
     from socket import socket, AF_INET, SOCK_DGRAM
     tmp = socket(AF_INET, SOCK_DGRAM)
     tmp.connect(("8.8.8.8", 80))
-    return tmp.getsockname()[0]
+    address = tmp.getsockname()[0]
+    if address is None:
+        raise RuntimeError("Unable to determine the local IP address!")
+    return address
