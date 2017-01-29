@@ -1,14 +1,10 @@
 from __future__ import print_function
 
 import time
-import pickle
-import socket
-
-import numpy as np
 
 import cv2
 
-from FIPER.generic import FRAMESIZE, STREAMPORT, TICK
+from FIPER.generic import *
 
 print("OpenCV version:", cv2.__version__)
 
@@ -18,109 +14,100 @@ XMAX = 100.
 YMAX = 100.
 
 
-class Car:
+class CaptureDeviceMocker(object):
+    """Mocks the interface of cv2.VideoCapture"""
+
+    @staticmethod
+    def read():
+        """
+        Mocks the functionality of VideoCapture().read():
+
+        returns success code and a white noise frame
+        """
+        return True, white_noise(DUMMY_FRAMESIZE)
+
+
+class Car(object):
 
     """
-    Implemented as a video stream SERVER
+    A video stream server, located somewhere on the local network.
+    It has a mounted video capture device, read by openCV.
+    Video frames are forwarded to a central server for further processing
     """
 
-    def __init__(self, ID, address=None):
+    def __init__(self, ID):
         self.ID = ID
-        self.eye = None
-        self.address = address  # Should we NOT use a default port number?
-        self.socket = None
-        self.position = np.array([XMAX, YMAX]) / 2  # XY coords
-        self.velocity = np.array([0., 0.])  # as vector
+        # self.eye = cv2.VideoCapture(0)
+        self.eye = CaptureDeviceMocker
         self.rpm = 0
-        self.connect()
+        self.msocket = None  # 4 message tranfer
+
+        # Infer the local IP address
+        tmpsck = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        tmpsck.connect(("8.8.8.8", 80))
+        self.address = tmpsck.getsockname()[0]
+        tmpsck.close()
+
+        self.dsocket = socket.socket(socket.AF_INET, DPROTOCOL)
+        self.dsocket.bind((self.address, STREAMPORT))
 
     def out(self, *args, **kw):
+        """Wrapper for print(). Appends car's ID to every output line"""
         sep, end = kw.get("sep", " "), kw.get("end", "\n")
         print("CAR {}: ".format(self.ID), *args, sep=sep, end=end)
 
-    def connect(self):
-        # self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # 'tis UDP
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # 'tis TCP
-        self.socket.bind((self.address, STREAMPORT))
-        self.out("BOUND TO {}:{}".format(self.address, STREAMPORT))
-        self.out("Awaiting connection...")
-        self.socket.listen(1)
-        self.socket, adr = self.socket.accept()
-        self.out("Connection from", adr)
+    def connect(self, server_ip):
+        """Establishes connections with the server"""
 
-    def dummy_move(self):
+        success, frame = self.eye.read()
+        if not success:
+            self.eye = CaptureDeviceMocker
+            frame = self.eye.read()[1]
+
+        # Initiate connection by setting up the message-passing
+        # socket, then send ID and video frame shape to the server
+        self.msocket = socket.socket(socket.AF_INET, MPROTOCOL)
+        self.msocket.connect((server_ip, MESSAGEPORT))
+        self.out("MSOCKET connected to {}:{}".format(server_ip, MESSAGEPORT))
+        self.message(str(self.ID).encode(), t=0.5)
+        self.message(str(frame.shape)[1:-1].replace(", ", "x").encode())
+
+        # Set up the stream socket and complete the connection
+        self.out("Waiting for UDP connection...")
+        self.dsocket.listen(1)
+        self.dsocket, dadr = self.dsocket.accept()
+        self.out("DSOCKET connected to {}:{}".format(dadr[0], STREAMPORT))
+        # assert dadr[0] == server_ip
+
+    def see(self):
         """
-        This method is REALLY unnecessary.
+        Obtain frames from the capture device via OpenCV.
+        Send the frames to the UDP client (the main server)
         """
-        nabla = np.random.uniform(-DELTA, DELTA, (2,))  # acceleration
-        self.velocity += nabla
-        self.position += self.velocity
-        if self.position[0] > XMAX:
-            self.position[0] = XMAX
-            self.velocity[0] = -self.velocity[0] * 0.25  # ricochet
-        if self.position[0] < 0:
-            self.position[0] = 0
-            self.velocity[0] = -self.velocity[0] * 0.25
-        if self.position[1] > YMAX:
-            self.position[1] = YMAX
-            self.velocity[1] = -self.velocity[1] * 0.25
-        if self.position[1] < 0:
-            self.position[1] = 0
-            self.velocity[1] = -self.velocity[1] * 0.25
-
-        # I'm having so much fun with this :D
-        self.velocity *= 0.90  # friction
-
-    def cv_see(self):
-        """Obtain frames from the capture device via openCV"""
-        if self.eye is None:
-            self.eye = cv2.VideoCapture(0)  # device ID goes here
-        # Do we do any image preprocessing on the car?
         while 1:
-            self.push_frame(self.eye.read().astype(int))
+            success, frame = self.eye.read()
+            serial = frame.astype(DTYPE).tobytes()
+            for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
+                self.dsocket.send(slc)
+            self.out("Pushed array of shape: ", frame.shape)
 
-    def dummy_see(self):
-        """Obtain a white noise frame"""
-        self.out("Starting white noise stream...".format(self.ID))
-        while 1:
-            frame = (np.random.randn(*FRAMESIZE) * 255).astype(int)
-            self.push_frame(frame)
-
-    def push_frame(self, ndarray):
-        """
-        Push a frame through the socket
-
-        :param ndarray: 3d numpy array of dtype: int
-        :return:
-        """
-        serial = pickle.dumps(ndarray, protocol=0)
-        slices = (serial[start:start + 1024] for start in
-                  range(0, len(serial), 1024))
+    def message(self, m, t=0.):
+        """Sends a bytes message through the message port"""
+        slices = (m[start:start+1024] for start in range(0, len(m), 1024))
         for slc in slices:
-            self.socket.send(slc)
-        self.out("Pushed array of shape", ndarray.shape)
+            self.msocket.send(slc)
+        self.msocket.send(b"ROGER")
+        time.sleep(t)
 
-    def emulate(self, display=True):
-        if display:
-            from matplotlib import pyplot as plt
-            plt.ion()
-            obj = plt.plot(self.position[0], self.position[1], "o", color="black")[0]
-            ax = plt.gca()
-            ax.set_xlim(0, XMAX)
-            ax.set_ylim(0, YMAX)
-        while 1:
-            # self.dummy_move()
-            # self.out("I am at ({:>6.2f}, {:>6.2f}), v = {v:>5.2f}".format(
-            #     *self.position, v=abs(self.velocity.sum())))
-            self.dummy_see()
-            if display:
-                x, y = self.position
-                obj.set_xdata(x)
-                obj.set_ydata(y)
-                plt.pause(TICK)
-            else:
-                time.sleep(TICK)
 
 if __name__ == '__main__':
-    lightning_mcqueen = Car(ID=95, address="127.0.0.1")
-    lightning_mcqueen.emulate(display=False)
+    import sys
+
+    if len(sys.argv) > 1:
+        ip = sys.argv[1]
+    else:
+        ip = "192.168.1.2"
+
+    lightning_mcqueen = Car(ID=95)
+    lightning_mcqueen.connect(ip)
+    lightning_mcqueen.see()

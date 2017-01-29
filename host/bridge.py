@@ -1,47 +1,94 @@
 from __future__ import print_function
 
-import pickle
+import time
+import threading as thr
 import socket as sck
 
-import numpy as np
-
-from FIPER.generic import FRAMESIZE, STREAMPORT, TICK
+from FIPER.generic import *
 
 
-class CarInterface:
+class CarInterface(object):
     """
     Implemented as a video stream CLIENT
     """
 
-    def __init__(self, address):
-        self.connection = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
-        self.connection.connect((address, STREAMPORT))
-        print("IFACE: successful connection to {}:{}".format(address, STREAMPORT))
+    def __init__(self, msock, address):
+        self.msocket = msock
+        self.address = address
+        
+        self.car_ID = self.get_message()
+        self.framesize = self.get_message().split("x")
+        self.out("Target ID:", self.car_ID)
+        self.out("Framesize:", self.framesize)
+
+        self.dsocket = sck.socket(sck.AF_INET, DPROTOCOL)
+        self.dsocket.connect((address[0], STREAMPORT))
+        self.out("Successful data connection to {}:{}".format(address[0], STREAMPORT))
+
+    def out(self, *args, **kw):
+        """Wrapper for print(). Appends car's ID to every output line"""
+        sep, end = kw.get("sep", " "), kw.get("end", "\n")
+        print("IFACE {}: ".format(self.car_ID), *args, sep=sep, end=end)
+
+    def get_message(self):
+        data = b""
+        while data[-5:] != b"ROGER":
+            data += self.msocket.recv(1024)
+        return data[:-5]
 
     def get_stream(self):
-        data = b""
+        datalen = np.prod(self.framesize)
         while 1:
-            d = self.connection.recv(1024)
-            if d[:6] == b"cnumpy" and data:
-                frame = pickle.loads(data)
-                yield frame
-                data = b""
-            data += d
+            data = b""
+            while len(data) != datalen:
+                data += self.dsocket.recv(1024)
+            yield np.fromstring(data, dtype=DTYPE).reshape(self.framesize)
 
+    def display_stream(self):
+        from matplotlib import pyplot as plt
+        plt.ion()
+        obj = plt.imshow(np.zeros(self.framesize).astype(int), vmin=0, vmax=255)
+        for pic in self.get_stream():
+            self.out("Recieved frame of shape", pic.shape)
+            obj.set_data(pic)
+            plt.pause(TICK)
+
+    def __repr__(self):
+        return "CarInterface {} @ {}".format(self.car_ID, self.address)
+
+
+class FleetHandler(object):
+    """
+    Handles a Fleet of Cars
+    """
+
+    def __init__(self, ip=None):
+        self.cars = []
+        self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.msocket.bind(((ip if ip is not None else my_ip()), MESSAGEPORT))
+        print("SERVER: msocket bound to", ip)
+
+        self.listener = thr.Thread(name="Listener", target=self.listen)
+
+    def start(self):
+        self.listener.start()
+        # self.listen()
+
+    def listen(self):
+        print("SERVER: Awaiting connections...")
+        while 1:
+            self.msocket.listen(1)
+            conn, address = self.msocket.accept()
+            print("SERVER: Received connection from", address)
+            self.cars.append(CarInterface(conn, address))
+
+    def watch(self, car_no):
+        car = self.cars[car_no]
+        car.display_stream()
 
 if __name__ == '__main__':
-    from sys import argv
-    from matplotlib import pyplot as plt
-
-    if len(argv) > 1:
-        ip = argv[1]
-    else:
-        ip = "127.0.0.1"
-
-    plt.ion()
-    obj = plt.imshow(np.zeros(FRAMESIZE).astype(int), vmin=0, vmax=255)
-    ifc = CarInterface(ip)
-    for pic in ifc.get_stream():
-        print("RECVD pic OF SHAPE", pic.shape)
-        obj.set_data(pic)
-        plt.pause(TICK)
+    server = FleetHandler("192.168.1.5")
+    server.start()
+    while 1:
+        time.sleep(3)
+        print("OUTSIDE: Cars online:", len(server.cars))
