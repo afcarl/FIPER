@@ -14,18 +14,17 @@ class CarInterface(object):
     Implemented as a video stream CLIENT
     """
 
-    def __init__(self, msock, address):
+    def __init__(self, msock, srvip):
         self.msocket = msock
-        self.address = address
-        
+
         self.car_ID = self.get_message()
-        self.framesize = self.get_message().split("x")
+        self.framesize = [int(s) for s in self.get_message().split("x")]
         self.out("Target ID:", self.car_ID)
         self.out("Framesize:", self.framesize)
 
         self.dsocket = sck.socket(sck.AF_INET, DPROTOCOL)
-        self.dsocket.connect((address[0], STREAMPORT))
-        self.out("Successful data connection to {}:{}".format(address[0], STREAMPORT))
+        self.dsocket.bind((srvip, STREAMPORT))
+        self.out("Stream receiver port bound to {}:{}".format(srvip, STREAMPORT))
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
@@ -36,7 +35,7 @@ class CarInterface(object):
         data = b""
         while data[-5:] != b"ROGER":
             data += self.msocket.recv(1024)
-        return data[:-5]
+        return data[:-5].decode("utf8")
 
     def get_stream(self):
         datalen = np.prod(self.framesize)
@@ -48,12 +47,15 @@ class CarInterface(object):
             data = data[datalen:]
 
     def display_stream(self):
-        for pic in self.get_stream():
-            self.out("Recieved frame of shape", pic.shape)
+        for i, pic in enumerate(self.get_stream(), start=1):
+            self.out("\rRecieved {:>3} frames of shape {}"
+                     .format(i, pic.shape), end="")
             cv2.imshow("Stream", pic)
+            cv2.waitKey(1)
+        print()
 
     def __repr__(self):
-        return "CarInterface {} @ {}".format(self.car_ID, self.address)
+        return "CarInterface {}".format(self.car_ID)
 
 
 class FleetHandler(object):
@@ -62,6 +64,7 @@ class FleetHandler(object):
     """
 
     def __init__(self, ip=None):
+        self.ip = ip
         self.cars = []
         self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.msocket.bind(((ip if ip is not None else my_ip()), MESSAGEPORT))
@@ -83,7 +86,7 @@ class FleetHandler(object):
             self.msocket.listen(1)
             conn, address = self.msocket.accept()
             print("SERVER: Received connection from", address)
-            self.cars.append(CarInterface(conn, address))
+            self.cars.append(CarInterface(conn, self.ip))
 
     def watch(self):
         while 1:
@@ -93,10 +96,20 @@ class FleetHandler(object):
             print("SERVER: Watching Car:", car.car_ID)
             car.display_stream()
 
-if __name__ == '__main__':
-    server = FleetHandler("192.168.1.5")
+
+def main():
+    import sys
+
+    if len(sys.argv) < 2:
+        raise RuntimeError("Please supply the server's IP address as the first argument!")
+
+    server = FleetHandler(sys.argv[1])
     server.start_listening()
     server.start_watching()
     while 1:
-        time.sleep(3)
+        time.sleep(20)
         print("OUTSIDE: Cars online:", len(server.cars))
+
+
+if __name__ == '__main__':
+    main()
