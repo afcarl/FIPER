@@ -15,8 +15,10 @@ class CarInterface(object):
     """
 
     def __init__(self, msock, srvip):
+        # The server's message socket
         self.msocket = msock
 
+        # car_ID and framesize are sent throught the message socket
         self.car_ID = self.get_message()
         self.framesize = [int(s) for s in self.get_message().split("x")]
         self.out("Target ID:", self.car_ID)
@@ -32,12 +34,14 @@ class CarInterface(object):
         print("IFACE {}: ".format(self.car_ID), *args, sep=sep, end=end)
 
     def get_message(self):
+        """Receive a message from the message port"""
         data = b""
         while data[-5:] != b"ROGER":
             data += self.msocket.recv(1024)
         return data[:-5].decode("utf8")
 
     def get_stream(self):
+        """Generator function that yields the received video frames"""
         datalen = np.prod(self.framesize)
         data = b""
         while 1:
@@ -71,7 +75,7 @@ class FleetHandler(object):
         print("SERVER: msocket bound to", ip)
 
         self.listener = thr.Thread(name="Listener", target=self.listen)
-        self.watcher = thr.Thread(name="Listener", target=self.watch)
+        self.watcher = thr.Thread(name="Watcher", target=self.watch)
 
     def start_listening(self):
         self.listener.start()
@@ -81,6 +85,10 @@ class FleetHandler(object):
         self.watcher.start()
 
     def listen(self):
+        """
+        Accepts connections from cars
+        self.listener runs this in a separate thread
+        """
         print("SERVER: Awaiting connections...")
         while 1:
             self.msocket.listen(1)
@@ -89,6 +97,10 @@ class FleetHandler(object):
             self.cars.append(CarInterface(conn, self.ip))
 
     def watch(self):
+        """
+        Displays video streams from CarInterfaces.
+        self.watcher runs this in a separate thread.
+        """
         while 1:
             while not self.cars:
                 time.sleep(3)
@@ -98,6 +110,7 @@ class FleetHandler(object):
 
 
 def main():
+    """Does the argparse and launches a server"""
     import sys
 
     if len(sys.argv) < 2:
@@ -110,6 +123,15 @@ def main():
         time.sleep(20)
         print("OUTSIDE: Cars online:", len(server.cars))
 
+# TODO: this is a bad approach.
+# This setup isn't able to handle multiple car objects,
+# because it will try to bind the same ip:port combo for
+# every CarInterface.
+# Maybe every interface should have an own UDP port for
+# receiving the video stream from the car.
+# But cars send their streams to a specified address, so
+# the UDP port bound for a car should be broadcasted or
+# sent to it via the message port.
 
 if __name__ == '__main__':
     main()

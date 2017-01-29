@@ -5,6 +5,10 @@ import socket
 # X, Y, Channel
 DUMMY_FRAMESIZE = 640, 480, 3
 
+# File for cv2.VideoCapture to read frames from
+# Set this if no capture device is available!
+DUMMY_VIDEOFILE = "~/go.avi"
+
 # Ports
 STREAMPORT = 1234
 MESSAGEPORT = 1235

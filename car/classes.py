@@ -29,7 +29,7 @@ class CaptureDeviceMockerWhite(object):
 class CaptureDeviceMockerFile(object):
     """Mocks the interface of cv2.VideoCapture"""
 
-    myreader = cv2.VideoCapture("/data/Prog/data/raw/vid/go.avi")
+    myreader = cv2.VideoCapture(DUMMY_VIDEOFILE)
 
     @staticmethod
     def read():
@@ -49,17 +49,18 @@ class Car(object):
     Video frames are forwarded to a central server for further processing
     """
 
-    def __init__(self, ID, address=None):
+    def __init__(self, ID, address):
         self.ID = ID
-        # self.eye = cv2.VideoCapture(0)
-        self.eye = CaptureDeviceMockerFile
-        self.rpm = 0
-        self.msocket = None  # 4 message tranfer
-        self.server_ip = None  # if UPD is used for data transfer
+
+        if not DUMMY_VIDEOFILE:
+            self.eye = cv2.VideoCapture(0)
+        else:
+            self.eye = CaptureDeviceMockerFile
+
+        self.msocket = None  # message transfer socket
+        self.server_ip = None  # this will be the UDP stream's target
 
         # Try to infer the local IP address
-        if address is None:
-            address = my_ip()
         self.address = address
 
         self.dsocket = socket.socket(socket.AF_INET, DPROTOCOL)
@@ -99,7 +100,7 @@ class Car(object):
         pushed = 0
         while 1:
             success, frame = self.eye.read()
-            serial = frame.astype(DTYPE).tobytes()
+            serial = frame.astype(DTYPE).tostring()
             for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
                 self.dsocket.sendto(slc, (self.server_ip, STREAMPORT))
             pushed += 1
