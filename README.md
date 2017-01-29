@@ -5,3 +5,4 @@ The following Python modules
 have to be installed:
 
 - wx for wxPython
+- OpenCV and Python bindings
