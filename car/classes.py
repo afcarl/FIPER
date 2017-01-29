@@ -9,11 +9,6 @@ from FIPER.generic import *
 print("OpenCV version:", cv2.__version__)
 
 
-DELTA = 2.
-XMAX = 100.
-YMAX = 100.
-
-
 class CaptureDeviceMocker(object):
     """Mocks the interface of cv2.VideoCapture"""
 
@@ -95,13 +90,6 @@ class Car(object):
 
 
 if __name__ == '__main__':
-    import sys
-
-    if len(sys.argv) > 1:
-        ip = sys.argv[1]
-    else:
-        ip = "192.168.1.2"
-
-    lightning_mcqueen = Car(ID=95)
+    lightning_mcqueen = Car(ID=95, address=NOTE)
     lightning_mcqueen.connect(ip)
     lightning_mcqueen.see()
