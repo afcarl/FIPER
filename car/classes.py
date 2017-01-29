@@ -1,15 +1,19 @@
 from __future__ import print_function
 
+# STDLIB imports
 import time
+import warnings
 
+# 3rd party imports
 import cv2
 
+# Project imports
 from FIPER.generic import *
 
 print("OpenCV version:", cv2.__version__)
 
 
-class CaptureDeviceMocker(object):
+class CaptureDeviceMockerWhite(object):
     """Mocks the interface of cv2.VideoCapture"""
 
     @staticmethod
@@ -20,6 +24,21 @@ class CaptureDeviceMocker(object):
         returns success code and a white noise frame
         """
         return True, white_noise(DUMMY_FRAMESIZE)
+
+
+class CaptureDeviceMockerFile(object):
+    """Mocks the interface of cv2.VideoCapture"""
+
+    myreader = cv2.VideoCapture("/data/Prog/data/raw/vid/go.avi")
+
+    @staticmethod
+    def read():
+        """
+        Mocks the functionality of VideoCapture().read():
+
+        reads a file frame-by-frame
+        """
+        return CaptureDeviceMockerFile.myreader.read()
 
 
 class Car(object):
@@ -33,7 +52,7 @@ class Car(object):
     def __init__(self, ID, address=None):
         self.ID = ID
         # self.eye = cv2.VideoCapture(0)
-        self.eye = CaptureDeviceMocker
+        self.eye = CaptureDeviceMockerFile
         self.rpm = 0
         self.msocket = None  # 4 message tranfer
         self.server_ip = None  # if UPD is used for data transfer
@@ -53,13 +72,16 @@ class Car(object):
     def connect(self, server_ip):
         """Establishes connections with the server"""
 
+        self.server_ip = server_ip
+
         # Read a single frame to infer the frame shape
         success, frame = self.eye.read()
         if not success:
-            # If read fails, we assume no capture device is connected
-            # and fall back to white noise streaming
-            self.eye = CaptureDeviceMocker
+            self.eye = CaptureDeviceMockerWhite
             frame = self.eye.read()[1]
+            msg = "Capture device unreachable!\n"
+            msg += "Falling back to white noise stream!"
+            warnings.warn(msg)
 
         # Initiate connection by setting up the message-passing
         # socket, then send ID and video frame shape to the server
@@ -74,12 +96,14 @@ class Car(object):
         Obtain frames from the capture device via OpenCV.
         Send the frames to the UDP client (the main server)
         """
+        pushed = 0
         while 1:
             success, frame = self.eye.read()
             serial = frame.astype(DTYPE).tobytes()
             for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
                 self.dsocket.sendto(slc, (self.server_ip, STREAMPORT))
-            self.out("Pushed array of shape: ", frame.shape)
+            pushed += 1
+            print("\rPushed {:>3} frames".format(pushed), end="")
 
     def message(self, m, t=0.):
         """Sends a bytes message through the message port"""
@@ -89,7 +113,18 @@ class Car(object):
         time.sleep(t)
 
 
-if __name__ == '__main__':
-    lightning_mcqueen = Car(ID=95, address=NOTE)
-    lightning_mcqueen.connect(ip)
+def main():
+    import sys
+
+    if len(sys.argv) < 3:
+        msg = "Please supply the local IP address of this\n" \
+              + "car as the first argument and the server's\n" \
+              + "IP address as the second argument!"
+        raise RuntimeError(msg)
+    lightning_mcqueen = Car(ID=95, address=sys.argv[1])
+    lightning_mcqueen.connect(sys.argv[2])
     lightning_mcqueen.see()
+
+
+if __name__ == '__main__':
+    main()
