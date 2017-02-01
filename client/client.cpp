@@ -1,58 +1,79 @@
-#include "client.h"
+import wx
+import label 
+import time
 
+class MainFrame(wx.Frame):
 
-    TcpClient::TcpClient(int PortNo = 20000, char* IpAddress = "192.168.0.17")
-    {
-        portNo = PortNo;
-        ipAddress = IpAddress;
-    }
+	def __init__(self):
+		wx.Frame.__init__(self, None, title='Test')
+		# Erase background from designated areas by DC ( for the buttons )
+		self.Bind(wx.EVT_ERASE_BACKGROUND, self.set_background)
+		
+		# Place labels on the background
+		self.place_labels()
+		
+		# Place buttons on background
+		self.place_buttons()
+		
 
+		# Set App to FullScreen and get focus
+		self.ShowFullScreen(True)
+		self.Show()
+		
+	def set_background(self, evt):
+		self.SetBackgroundStyle(wx.BG_STYLE_ERASE)
+		dc = evt.GetDC()
+		if not dc:
+			dc = wx.ClientDC(self)
+			rect = self.GetUpdateRegion().GetBox()
+			dc.SetClippingRegionAsRegion()
+		dc.Clear()
+		bmp = wx.Bitmap("image\\menu\\bgnd.jpg")
+		dc.DrawBitmap(bmp, 0, 0)
 
-    bool TcpClient::ConnectToHost()
-    {
-            WSADATA wsadata;
-            int error = WSAStartup(0x0202, &wsadata);
+	def place_buttons(self):
+		resolution = wx.DisplaySize()
+		width = resolution[0] 
+		height = resolution[1]
+		
+		connect_skin = wx.Bitmap('metal.jpg')
+		self.connect_button = wx.BitmapButton(self, -1)
 
-            if (error){ return false; }
+	def scale_bitmap(self, bitmap, width, height):
+		image = wx.ImageFromBitmap(bitmap)
+		image = image.Scale(width, height, wx.IMAGE_QUALITY_HIGH)
+		result = wx.BitmapFromImage(image)
+		return result	
 
-            if (wsadata.wVersion != 0x0202)
-            {
-                WSACleanup();
-                return false;
-            }
+	def set_cursor(self):
+		cursor_path = 'image\\menu\\cursor.ico'
+		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
+		self.SetCursor(cursor)
 
-            SOCKADDR_IN target; //Socket address information
+	def place_labels(self):
 
-            target.sin_family = AF_INET; // address family Internet
-            target.sin_port = htons (portNo); //Port to connect on
-            target.sin_addr.s_addr = inet_addr (ipAddress); //Target IP
+		# Get Screen Resolution
+		resolution = wx.DisplaySize()
+		width = resolution[0] 
+		height = resolution[1]
+		
+		# Define Labels
+		version = label.TransparentText(self,'Release: Alpha', (10,height-30), 'white', 16)
+		contact = label.TransparentText(self,'Contact:', (width-110,height-60), 'white', 16)
+		email = label.TransparentText(self,'gal.mateo@gmail.com', (width-280,height-30), 'white', 16)
+		
+		# Place labels on the frame 
+		email.Show()
+		version.Show()
+		contact.Show()
+		
+class Main(wx.App):
+   
+    def __init__(self):
+		wx.App.__init__(self)
+		dlg = MainFrame()
+		dlg.Show()
 
-            mySocket = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP); //Create socket
-            if (mySocket == INVALID_SOCKET)
-            {
-                return false;
-            }
-
-            if (connect(mySocket, (SOCKADDR *)&target, sizeof(target)) == SOCKET_ERROR)
-            {
-                return false;
-            }
-            return true;
-    }
-
-
-    void TcpClient::SendTcpMessage(char* message)
-    {
-        send(mySocket,message,strlen(message),0);
-    }
-
-
-    void TcpClient::CloseConnection()
-    {
-        if (mySocket)
-        {
-            closesocket(mySocket);
-        }
-
-        WSACleanup();
-    }
+if __name__ == "__main__":
+    app = Main()
+    app.MainLoop()
