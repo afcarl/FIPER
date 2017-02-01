@@ -37,7 +37,7 @@ class MainPanel(wx.Panel):
             rect = self.GetUpdateRegion().GetBox()
             dc.SetClippingRect(rect)
         dc.Clear()
-        bmp = wx.Bitmap("bgnd.jpg")
+        bmp = wx.Bitmap("image\\menu\\bgnd.jpg")
         dc.DrawBitmap(bmp, 0, 0)
 
 
