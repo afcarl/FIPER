@@ -106,6 +106,12 @@ class Car(object):
         self.out("Streaming to {}".format(self.server_port))
 
     def launch_stream(self):
+        """
+        Launches the worker thread which streams video to the server
+        Thread creation is done here too, because threads cannot be
+        restarted.
+        (Turning streaming off, then on again wouldn't be possible)
+        """
         self.streaming = True
         self.stream_worker = thr.Thread(target=self.see,
                                         name="{} Stream Worker"
@@ -113,9 +119,9 @@ class Car(object):
         self.stream_worker.start()
 
     def terminate_stream(self):
+        """Tears down the streaming thread"""
         self.streaming = False
-        time.sleep(3)
-        self.stream_worker.join()
+        time.sleep(3)  # Wait for loop termination
 
     def see(self):
         """
@@ -126,7 +132,10 @@ class Car(object):
         self.streaming = True
         while self.streaming:
             success, frame = self.eye.read()
-            serial = frame.astype(DTYPE).tostring()
+            ##########################################
+            # Data preprocessing has to be done here #
+            serial = frame.astype(DTYPE).tostring()  #
+            ##########################################
             for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
                 self.dsocket.sendto(slc, (self.server_ip, STREAM_SERVER_PORT))
             pushed += 1
@@ -139,17 +148,19 @@ class Car(object):
         print("CAR {}: ".format(self.ID), *args, sep=sep, end=end)
 
     def shutdown(self):
-        self.streaming = False
+        if self.streaming:
+            self.terminate_stream()
         self.live = False
-
-        # Wait for stream to terminate
-        time.sleep(3)
 
         self.dsocket.close()
         Messaging.send(self.msocket, "{} offline".format(self.ID))
         self.msocket.close()
 
     def mainloop(self):
+        """
+        This loop wathces the messaging system and receives
+        control commands from the server.
+        """
         while self.live:
             msg = Messaging.recv(self.msocket, timeout=1).lower()
             if msg is None:
@@ -190,7 +201,7 @@ def main():
     lightning_mcqueen.connect(serverIP)
     lightning_mcqueen.mainloop()
 
-    print("OUTSIDE: Car shut down nicely.")
+    print("OUTSIDE: Car was shut down nicely.")
 
 
 if __name__ == '__main__':

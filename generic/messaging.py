@@ -2,6 +2,9 @@ import time
 
 
 class Messaging(object):
+    """
+    Groups the messaging connection's together
+    """
 
     @staticmethod
     def send(msock, msg, wait=0.5):
