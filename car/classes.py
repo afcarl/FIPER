@@ -167,7 +167,6 @@ class Car(object):
             else:
                 self.out("Received unknown command:", msg)
         self.out("Shutting down...")
-        self.stream_worker.join()
 
 
 def readargs():
