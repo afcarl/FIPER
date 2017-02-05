@@ -146,7 +146,7 @@ class Car(object):
         time.sleep(3)
 
         self.dsocket.close()
-        self.send_message("{} offline".format(self.ID))
+        Messaging.send(self.msocket, "{} offline".format(self.ID))
         self.msocket.close()
 
     def mainloop(self):
@@ -190,7 +190,7 @@ def main():
     lightning_mcqueen.connect(serverIP)
     lightning_mcqueen.mainloop()
 
-    print("Car shut down nicely.")
+    print("OUTSIDE: Car shut down nicely.")
 
 
 if __name__ == '__main__':

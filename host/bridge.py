@@ -112,6 +112,14 @@ class FleetHandler(object):
         else:
             assert False, "Shame on YOU, Developer!"
 
+        if ID in self.watchers:
+            self.watchers[ID].running = False
+            time.sleep(3)
+            assert not self.watchers[ID].online
+            del self.watchers[ID]
+
+        del self.cars[ID]
+
     def watch_car(self, ID, *args):
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
 
@@ -162,6 +170,7 @@ class FleetHandler(object):
             "watch": self.watch_car,
             "shutdown": self.shutdown,
             "status": self.report,
+            "cars": lambda: print("Cars online:", ", ".join(sorted(self.cars))),
             "start": self.start_listening
         }
         while 1:
