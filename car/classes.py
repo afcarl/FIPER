@@ -14,7 +14,7 @@ from FIPER.generic import *
 
 print("OpenCV version:", cv2.__version__)
 
-DUMMY_VIDEOFILE = "~./go.avi"
+DUMMY_VIDEOFILE = ""
 DUMMY_FRAMESIZE = (640, 480, 3)  # = 921,600 B in uint8
 
 
@@ -57,8 +57,10 @@ class Car(object):
     def __init__(self, ID, address):
         self.ID = ID
 
-        if not (DUMMY_VIDEOFILE and os.path.exists(DUMMY_VIDEOFILE)):
+        if not DUMMY_VIDEOFILE:
             self.eye = cv2.VideoCapture(0)
+        elif not os.path.exists(DUMMY_VIDEOFILE):
+            self.eye = CaptureDeviceMockerWhite
         else:
             self.eye = CaptureDeviceMockerFile
 
@@ -173,7 +175,7 @@ def readargs():
     question = ["the local IP address of this Car",
                 "the remote IP address for the server",
                 "a unique ID for this Car"]
-    return [input(pleading + q + " > ") for q in question]
+    return [raw_input(pleading + q + " > ") for q in question]
 
 
 def main():

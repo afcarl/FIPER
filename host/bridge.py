@@ -109,7 +109,7 @@ class FleetHandler(object):
         elif status == "{} offline".format(ID):
             print("SERVER {} shut down as expected".format(ID))
         else:
-            assert False, "Shame on the developer"
+            assert False, "Shame on YOU, Developer!"
 
     def watch_car(self, ID, *args):
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
@@ -160,15 +160,19 @@ class FleetHandler(object):
             "kill": self.kill_car,
             "watch": self.watch_car,
             "shutdown": self.shutdown,
-            "status": self.status,
+            "status": self.report,
             "start": self.start_listening
         }
         while 1:
-            c = raw_input("FIPER server prompt > ").lower().split(" ")
-            cmd, args = c[0], c[1:]
+            prompt = "FIPER bridge [{}] > ".format(self.status)
+            c = raw_input(prompt).split(" ")
+            cmd, args = c[0].lower(), c[1:]
+            if not cmd:
+                continue
             if c[0] not in commands:
-                print("SERVER: unknown command:", cmd)
+                print("SERVER: Unknown command:", cmd)
             else:
+                # print("SERVER: Reveived command:", cmd)
                 commands[cmd](*args)
             if cmd == "shutdown":
                 print("SERVER: Console shut down correctly")
@@ -179,7 +183,7 @@ class FleetHandler(object):
         Accepts connections from cars
         self.listener runs this in a separate thread
         """
-        print("SERVER: Awaiting connections...")
+        print("\nSERVER: Awaiting connections...")
         self.msocket.listen(1)
         while self.running:
             try:
@@ -187,7 +191,7 @@ class FleetHandler(object):
             except:
                 time.sleep(1)
             else:
-                print("SERVER: Received connection from", address)
+                print("\nSERVER: Received connection from", address)
                 ifc = CarInterface(conn, self.ip, self.nextport)
                 self.cars[ifc.car_ID] = ifc
                 self.nextport += 1
