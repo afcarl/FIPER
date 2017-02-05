@@ -99,9 +99,11 @@ class FleetHandler(object):
         self.listener.start()
 
     def kill_car(self, ID, *args):
+        if ID in self.watchers:
+            self.stop_watch(ID)
         msck = self.cars[ID].msocket
         Messaging.send(msck, "shutdown")
-        time.sleep(5)
+        time.sleep(3)
 
         status = Messaging.recv(msck, timeout=5)
         if status is None:
@@ -110,12 +112,6 @@ class FleetHandler(object):
             print("SERVER {} shut down as expected".format(ID))
         else:
             assert False, "Shame on YOU, Developer!"
-
-        if ID in self.watchers:
-            self.watchers[ID].running = False
-            time.sleep(3)
-            assert not self.watchers[ID].online
-            del self.watchers[ID]
 
         del self.cars[ID]
 
@@ -128,7 +124,7 @@ class FleetHandler(object):
         Messaging.send(self.cars[ID].msocket, "stream off")
         self.watchers[ID].running = False
         time.sleep(3)
-        assert not self.watchers[ID].online
+        # assert not self.watchers[ID].online
         del self.watchers[ID]
 
     def shutdown(self, *args):
@@ -174,7 +170,7 @@ class FleetHandler(object):
             "status": self.report,
             "cars": lambda: print("Cars online:", ", ".join(sorted(self.cars))),
             "start": self.start_listening,
-            "message": lambda ID, msg: Messaging.send(self.cars[ID].msocket, msg)
+            "message": lambda ID, *msg: Messaging.send(self.cars[ID].msocket, " ".join(msg))
         }
         while 1:
             prompt = "FIPER bridge [{}] > ".format(self.status)

@@ -153,8 +153,9 @@ class Car(object):
         while self.live:
             msg = Messaging.recv(self.msocket, timeout=1).lower()
             if msg is None:
-                pass
-            elif msg == "shutdown":
+                continue
+            self.out("Received message:", msg)
+            if msg == "shutdown":
                 self.shutdown()
                 break
             elif msg == "stream on":
