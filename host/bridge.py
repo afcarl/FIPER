@@ -28,7 +28,6 @@ class StreamDisplayer(thr.Thread):
             if not self.running:
                 break
         cv2.destroyWindow("{} Stream".format(self.interface.car_ID))
-        self.join()
         self.online = False
 
 
@@ -121,9 +120,12 @@ class FleetHandler(object):
         del self.cars[ID]
 
     def watch_car(self, ID, *args):
+        Messaging.send(self.cars[ID].msocket, "stream on")
+        time.sleep(3)
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
 
     def stop_watch(self, ID, *args):
+        Messaging.send(self.cars[ID].msocket, "stream off")
         self.watchers[ID].running = False
         time.sleep(3)
         assert not self.watchers[ID].online
@@ -171,7 +173,8 @@ class FleetHandler(object):
             "shutdown": self.shutdown,
             "status": self.report,
             "cars": lambda: print("Cars online:", ", ".join(sorted(self.cars))),
-            "start": self.start_listening
+            "start": self.start_listening,
+            "message": lambda ID, msg: Messaging.send(self.cars[ID].msocket, msg)
         }
         while 1:
             prompt = "FIPER bridge [{}] > ".format(self.status)
