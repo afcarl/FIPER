@@ -39,6 +39,7 @@ class CarInterface(object):
 
     def __init__(self, msock, srvip, rcvport):
         # The server's message socket
+        self.msocket = msock
         self.send_message = lambda m, t=0.5: Messaging.send(msock, m, t)
         self.get_message = lambda: Messaging.recv(msock)
 
@@ -99,7 +100,7 @@ class FleetHandler(object):
         self.listener.start()
 
     def kill_car(self, ID, *args):
-        msck = self.cars[ID].msock
+        msck = self.cars[ID].msocket
         Messaging.send(msck, "shutdown")
         time.sleep(5)
 
@@ -183,7 +184,7 @@ class FleetHandler(object):
         Accepts connections from cars
         self.listener runs this in a separate thread
         """
-        print("\nSERVER: Awaiting connections...")
+        print("\nSERVER: Awaiting connections...\n")
         self.msocket.listen(1)
         while self.running:
             try:
@@ -191,7 +192,7 @@ class FleetHandler(object):
             except:
                 time.sleep(1)
             else:
-                print("\nSERVER: Received connection from", address)
+                print("\nSERVER: Received connection from", address, "\n")
                 ifc = CarInterface(conn, self.ip, self.nextport)
                 self.cars[ifc.car_ID] = ifc
                 self.nextport += 1
