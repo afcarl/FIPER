@@ -1,5 +1,5 @@
 import wx
-import label 
+
 
 class MainFrame(wx.Frame):
 
