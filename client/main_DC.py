@@ -51,43 +51,35 @@ class MainFrame(wx.Frame):
 		width = resolution[0] 
 		height = resolution[1]
 		
-		
-		
 		connect_skin = wx.Bitmap('image\\menu\\buttons\\btn0.png')
 		connect_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn0_hover.png')
 		connect_skin_click = wx.Bitmap('image\\menu\\buttons\\btn0_click.png')
-		
-		connect_button = wx.BitmapButton(self, -1, connect_skin, pos=(int(width*0.65),int(height*0.3)), size=(500,120))
+		connect_button = wx.BitmapButton(self, -1, connect_skin, pos=(int(width*0.65),int(height*0.3)), size=(510,130))
 		connect_button.SetBitmapHover(connect_skin_hover)
 		connect_button.SetBitmapSelected(connect_skin_click)
 	
-	
-	
-		connect_skin = wx.Bitmap('image\\menu\\buttons\\btn0.png')
-		connect_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn0_hover.png')
-		connect_skin_click = wx.Bitmap('image\\menu\\buttons\\btn0_click.png')
+		options_skin = wx.Bitmap('image\\menu\\buttons\\btn1.png')
+		options_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn1_hover.png')
+		options_skin_click = wx.Bitmap('image\\menu\\buttons\\btn1_click.png')
+		options_button = wx.BitmapButton(self, -1, options_skin, pos=(int(width*0.65),int(height*0.5)), size=(510,130))
+		options_button.SetBitmapHover(options_skin_hover)
+		options_button.SetBitmapSelected(options_skin_click)
 		
-		connect_button = wx.BitmapButton(self, -1, connect_skin, pos=(int(width*0.65),int(height*0.5)), size=(500,120))
-		connect_button.SetBitmapHover(connect_skin_hover)
-		connect_button.SetBitmapSelected(connect_skin_click)
-		
-		
-		
-		connect_skin = wx.Bitmap('image\\menu\\buttons\\btn0.png')
-		connect_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn0_hover.png')
-		connect_skin_click = wx.Bitmap('image\\menu\\buttons\\btn0_click.png')
-		
-		connect_button = wx.BitmapButton(self, -1, connect_skin, pos=(int(width*0.65),int(height*0.7)), size=(500,120))
-		connect_button.SetBitmapHover(connect_skin_hover)
-		connect_button.SetBitmapSelected(connect_skin_click)
-		
+		quit_skin = wx.Bitmap('image\\menu\\buttons\\btn2.png')
+		quit_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn2_hover.png')
+		quit_skin_click = wx.Bitmap('image\\menu\\buttons\\btn2_click.png')
+		quit_button = wx.BitmapButton(self, -1, quit_skin, pos=(int(width*0.65),int(height*0.7)), size=(510,130))
+		quit_button.SetBitmapHover(quit_skin_hover)
+		quit_button.SetBitmapSelected(quit_skin_click)
+		self.Bind(wx.EVT_BUTTON, self.close_app, quit_button)
 		
 	def place_labels(self):
 		resolution = wx.DisplaySize()
 		width = resolution[0] 
 		height = resolution[1]
 		
-
+	def close_app(self, event):
+		self.Close(True)
 		
 class Main(wx.App):
    
