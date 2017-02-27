@@ -50,12 +50,10 @@ class MainFrame(wx.Frame):
 		cursor_path = ('image\\menu\\cursor.ico')
 		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
 		self.SetCursor(cursor)	
-		
+			
 	def on_key_down(self, event):
 		if (event.GetKeyCode() == 27): # Check if ESC is pressed
-			self.close_app(wx.EVT_BUTTON)
-		else:
-			event.Skip()	
+			self.close_app(wx.EVT_BUTTON)	
 		
 	def place_buttons(self):
 		resolution = wx.DisplaySize()
@@ -86,15 +84,22 @@ class MainFrame(wx.Frame):
 		self.quit_button.Bind(wx.EVT_BUTTON, self.close_app)
 
 	def options_window(self, event):
-		x_pos = (self.width * 0.1)
-		y_pos = (self.height * 0.1)
-		width = (self.width * 0.7)
-		height = (self.height * 0.3)
+		x_pos = (self.width * 0.05)
+		y_pos = (self.height * 0.05)
+		width = (self.width * 0.9)
+		height = (self.height * 0.9)
 		self.options_window = NewFrame('options',width,height,x_pos,y_pos)
 		
 	def close_app(self, event):
-		self.quit_window = NewFrame('quit',200,200,200,200)
+		x_pos = (self.width * 0.35)
+		y_pos = (self.height * 0.35)
+		width = (self.width * 0.3)
+		height = (self.height * 0.3)
+		self.quit_window = NewFrame('quit', width, height, x_pos, y_pos)
 		
+		while(1):
+			if (event.GetKeyCode() == 27):
+				self.Close(True)
 		
 		
 class NewFrame(wx.Frame):
@@ -105,12 +110,12 @@ class NewFrame(wx.Frame):
 		wx.Frame.__init__(self, None, title=title, style = style)
 		
 		self.SetPosition((x,y))
-		self.Size.Set(width,height)
+		self.SetSize((width,height))
 		
-		self.SetTransparent(120)
+		self.SetTransparent(150)
 		self.SetBackgroundColour('Black')
 		self.Bind(wx.EVT_KEY_UP, self.on_key_down)
-		
+
 		self.set_cursor()
 		self.Show()
 
