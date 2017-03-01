@@ -30,14 +30,14 @@ class MainFrame(wx.Frame):
 			dc.SetClippingRegionAsRegion()
 		dc.Clear()
 		
-		background_image = wx.Image('image\\menu\\bgnd.png').ConvertToBitmap()
-		fiper_logo = wx.Image('image\\menu\\fiper.png').ConvertToBitmap()
+		background_image = wx.Image('image\\menu\\bgnd.jpg').ConvertToBitmap()
+		fiper_logo = wx.Image('image\\menu\\fiper_logo.png').ConvertToBitmap()
 		
 		background_bitmap = self.scale_bitmap(background_image, self.width, self.height)
 		dc.DrawBitmap(background_bitmap, 0, 0, True)
-		dc.DrawBitmap(fiper_logo, 0, self.height*0.75, False)
+		fiper_logo = self.scale_bitmap(fiper_logo, self.width*0.4, self.height*0.3)
+		dc.DrawBitmap(fiper_logo, 40, -10, False)
 		
-
 	def scale_bitmap(self, bitmap, width, height):
 		image = wx.ImageFromBitmap(bitmap)
 		image = image.Scale(width, height, wx.IMAGE_QUALITY_HIGH)
@@ -48,10 +48,6 @@ class MainFrame(wx.Frame):
 		cursor_path = ('image\\menu\\cursor.ico')
 		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
 		self.SetCursor(cursor)	
-			
-	def on_key_down(self, event):
-		if (event.GetKeyCode() == 27): # Check if ESC is pressed
-			self.close_app(wx.EVT_BUTTON)	
 		
 	def place_labels(self):
 		self.label_email = label.transparent_text(self, 'hello', (200,200), 'green', 32)
@@ -61,7 +57,7 @@ class MainFrame(wx.Frame):
 		self.connect_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn0_hover.png')
 		self.connect_skin_click = wx.Bitmap('image\\menu\\buttons\\btn0_click.png')
 		self.connect_button = wx.BitmapButton(self, -1, self.connect_skin, 
-													pos=(int(self.width*0.65),
+													pos=(int(self.width*0.64),
 													int(self.height*0.3)), 
 													size=(510,130))
 		self.connect_button.SetBitmapHover(self.connect_skin_hover)
@@ -72,7 +68,7 @@ class MainFrame(wx.Frame):
 		self.options_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn1_hover.png')
 		self.options_skin_click = wx.Bitmap('image\\menu\\buttons\\btn1_click.png')
 		self.options_button = wx.BitmapButton(self, -1, self.options_skin, 
-													pos=(int(self.width*0.65),
+													pos=(int(self.width*0.64),
 													int(self.height*0.5)), 
 													size=(510,130))
 		self.options_button.SetBitmapHover(self.options_skin_hover)
@@ -83,7 +79,7 @@ class MainFrame(wx.Frame):
 		self.quit_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn2_hover.png')
 		self.quit_skin_click = wx.Bitmap('image\\menu\\buttons\\btn2_click.png')
 		self.quit_button = wx.BitmapButton(self, -1, self.quit_skin, 
-													pos=(int(self.width*0.65),
+													pos=(int(self.width*0.64),
 													int(self.height*0.7)), 
 													size=(510,130))
 		self.quit_button.SetBitmapHover(self.quit_skin_hover)
@@ -91,17 +87,17 @@ class MainFrame(wx.Frame):
 		self.quit_button.Bind(wx.EVT_BUTTON, self.quit_window)
 		
 	def connect_window(self, event):
-		x_pos = (self.width * 0.05)
-		y_pos = (self.height * 0.05)
-		width = (self.width * 0.9)
-		height = (self.height * 0.9)
+		x_pos = (self.width * 0.025)
+		y_pos = (self.height * 0.025)
+		width = (self.width * 0.95)
+		height = (self.height * 0.95)
 		self.options_window = NewFrame('connect',width,height,x_pos,y_pos)
 		
 	def options_window(self, event):
-		x_pos = (self.width * 0.05)
-		y_pos = (self.height * 0.05)
-		width = (self.width * 0.9)
-		height = (self.height * 0.9)
+		x_pos = (self.width * 0.025)
+		y_pos = (self.height * 0.025)
+		width = (self.width * 0.95)
+		height = (self.height * 0.95)
 		self.options_window = NewFrame('options',width,height,x_pos,y_pos)
 		
 	def quit_window(self, event):
@@ -122,7 +118,7 @@ class NewFrame(wx.Frame):
 		self.SetPosition((x,y))
 		self.SetSize((width,height))
 		# Make new frame transparent, black,
-		self.SetTransparent(150)
+		self.SetTransparent(200)
 		self.SetBackgroundColour('Black')
 		# Keep Cursor Shape for new Frame 
 		self.set_cursor()
@@ -132,11 +128,8 @@ class NewFrame(wx.Frame):
 		cursor_path = ('image\\menu\\cursor.ico')
 		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
 		self.SetCursor(cursor)
-	
-	def on_key_down(self, event):
-		if (event.GetKeyCode() == 27): # Check if ESC is pressed
-			self.Close(force=True)
-	
+			
+		
 	
 class Main(wx.App):
    
@@ -148,3 +141,4 @@ class Main(wx.App):
 if __name__ == "__main__":
     app = Main()
     app.MainLoop()
+
