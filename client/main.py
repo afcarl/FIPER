@@ -21,7 +21,7 @@ class MainFrame(wx.Frame):
 		# Show Application ( Grab Focus )
 		self.Show()
 		
-	def set_background(self, event):
+	def set_background(self, event): 
 		self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
 		dc = event.GetDC()
 		if not dc:
@@ -29,13 +29,18 @@ class MainFrame(wx.Frame):
 			rect = self.GetUpdateRegion().GetBox()
 			dc.SetClippingRegionAsRegion()
 		dc.Clear()
-		bmp = wx.Bitmap('image\\menu\\bgnd.jpg')
-		bitmap = self.scale_bitmap(bmp)
-		dc.DrawBitmap(bitmap, 0, 0)
+		
+		background_image = wx.Image('image\\menu\\bgnd.png').ConvertToBitmap()
+		fiper_logo = wx.Image('image\\menu\\fiper.png').ConvertToBitmap()
+		
+		background_bitmap = self.scale_bitmap(background_image, self.width, self.height)
+		dc.DrawBitmap(background_bitmap, 0, 0, True)
+		dc.DrawBitmap(fiper_logo, 0, self.height*0.75, False)
+		
 
-	def scale_bitmap(self, bitmap):
+	def scale_bitmap(self, bitmap, width, height):
 		image = wx.ImageFromBitmap(bitmap)
-		image = image.Scale(self.width, self.height, wx.IMAGE_QUALITY_HIGH)
+		image = image.Scale(width, height, wx.IMAGE_QUALITY_HIGH)
 		result = wx.BitmapFromImage(image)
 		return result	
 		
@@ -61,7 +66,7 @@ class MainFrame(wx.Frame):
 													size=(510,130))
 		self.connect_button.SetBitmapHover(self.connect_skin_hover)
 		self.connect_button.SetBitmapSelected(self.connect_skin_click)
-		self.options_button.Bind(wx.EVT_BUTTON, self.connect_window)
+		self.connect_button.Bind(wx.EVT_BUTTON, self.connect_window)
 		#
 		self.options_skin = wx.Bitmap('image\\menu\\buttons\\btn1.png')
 		self.options_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn1_hover.png')
@@ -84,12 +89,7 @@ class MainFrame(wx.Frame):
 		self.quit_button.SetBitmapHover(self.quit_skin_hover)
 		self.quit_button.SetBitmapSelected(self.quit_skin_click)
 		self.quit_button.Bind(wx.EVT_BUTTON, self.quit_window)
-
-	def hide_buttons(self):
-		self.connect_button.Hide()
-		self.options_button.Hide()
-		self.quit_button.Hide()
-
+		
 	def connect_window(self, event):
 		x_pos = (self.width * 0.05)
 		y_pos = (self.height * 0.05)
@@ -136,7 +136,8 @@ class NewFrame(wx.Frame):
 	def on_key_down(self, event):
 		if (event.GetKeyCode() == 27): # Check if ESC is pressed
 			self.Close(force=True)
-			
+	
+	
 class Main(wx.App):
    
     def __init__(self):
