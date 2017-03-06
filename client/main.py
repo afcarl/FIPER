@@ -1,4 +1,6 @@
 import wx
+import sys
+import traceback
 
 class MainFrame(wx.Frame):
 
@@ -14,6 +16,8 @@ class MainFrame(wx.Frame):
 		self.SetBackgroundColour('black')
 		# Erase background from designated areas by DC ( for the buttons )
 		self.Bind(wx.EVT_ERASE_BACKGROUND, self.set_background)
+		#
+		self.Bind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)
 		# Place buttons on background
 		if ( place_buttons == True ):
 			self.place_buttons() 
@@ -86,8 +90,7 @@ class MainFrame(wx.Frame):
 													size=(510,130))
 		self.quit_button.SetBitmapHover(self.quit_skin_hover)
 		self.quit_button.SetBitmapSelected(self.quit_skin_click)
-		self.quit_button.Bind(wx.EVT_BUTTON, self.quit_window)	
-		
+		self.quit_button.Bind(wx.EVT_BUTTON, self.quit_window)
 		
 	def connect_window(self, event):
 		x_pos = (self.width * 0.025)
@@ -96,7 +99,6 @@ class MainFrame(wx.Frame):
 		height = (self.height * 0.95)
 		self.connect_window = NewFrame('connect', width, height, x_pos, y_pos)
 
-		
 	def options_window(self, event):
 		x_pos = (self.width * 0.025)
 		y_pos = (self.height * 0.025)
@@ -111,7 +113,7 @@ class MainFrame(wx.Frame):
 		height = (self.height * 0.3)
 		self.quit_window = NewFrame('quit', width, height, x_pos, y_pos)
 		
-	def hide_buttons(self):
+	def hide_buttons(self, event):
 		self.background_bitmap.Destroy()
 		self.fiper_logo.Destroy()
 		self.__init__(False)
@@ -120,6 +122,10 @@ class MainFrame(wx.Frame):
 		self.options_button.Hide()
 		self.quit_button.Hide()
 
+	def key_stroke_callback(self, event):
+		if (event.GetKeyCode() == wx.WXK_ESCAPE):
+			self.quit_window()
+			self.Unbind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)
 		
 class NewFrame(wx.Frame):
 	
@@ -141,13 +147,24 @@ class NewFrame(wx.Frame):
 			self.set_cursor()
 			self.Show()
 			if ( tp == 150 ): break # Max transparency
-
+			
+		self.Bind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)	
+			
 	def set_cursor(self):
 		cursor_path = ('image\\menu\\cursor.ico')
 		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
 		self.SetCursor(cursor)
-			
-		
+
+	def key_stroke_callback(self, event):
+		if (event.GetKeyCode() == wx.WXK_ESCAPE):
+			self.Close()
+		if (event.GetKeyCode() == wx.WXK_RETURN):
+			self.input()
+		event.Skip() 
+
+	def input(self):
+		print 'Input has been given.'
+	
 class Main(wx.App):
    
     def __init__(self):
