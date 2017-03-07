@@ -138,7 +138,7 @@ class FleetHandler(object):
 
     def watch_car(self, ID, *args):
         """
-        Initializez streaming, then launches a StreamDisplayer,
+        Initializes streaming, then launches a StreamDisplayer,
         which is run by a separate thread.
         """
 
