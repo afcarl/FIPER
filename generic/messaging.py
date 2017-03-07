@@ -3,7 +3,7 @@ import time
 
 class Messaging(object):
     """
-    Groups the messaging connection's together
+    Groups the messaging connections together
     """
 
     @staticmethod
