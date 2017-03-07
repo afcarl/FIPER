@@ -40,8 +40,7 @@ class StreamDisplayer(thr.Thread):
 class CarInterface(object):
     """
     Abstraction of a car-server connection.
-    Handles coordinates message-passing and
-    stream receiving.
+    Handles message-passing and stream receiving.
     """
 
     def __init__(self, msock, srvip, rcvport):
