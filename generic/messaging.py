@@ -16,6 +16,7 @@ class Messaging(object):
     @staticmethod
     def recv(msock, timeout=0):
         data = b""
+        msgbuffer = []
         while data[-5:] != b"ROGER":
             slc = msock.recv(1024)
             if timeout and not slc:
