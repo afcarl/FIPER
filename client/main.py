@@ -17,12 +17,15 @@ class MainFrame(wx.Frame):
 		# Erase background from designated areas by DC ( for the buttons )
 		self.Bind(wx.EVT_ERASE_BACKGROUND, self.set_background)
 		#
-		self.Bind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)
+		# self.Bind(wx.EVT_KEY_UP, self.key_stroke_callback)
 		# Place buttons on background
 		if ( place_buttons == True ):
 			self.place_buttons() 
 		# Set Custom Cursor Image 
 		self.set_cursor()
+		
+		self.version = wx.TextCtrl(self, value='Version: Pre-Alpha', size=(140,30), pos=(self.width*0.01,self.height*0.96))
+		self.version.SetTransparent(120)
 		# Show Application ( Grab Focus )
 		self.Show()
 		
@@ -98,6 +101,25 @@ class MainFrame(wx.Frame):
 		width = (self.width * 0.95)
 		height = (self.height * 0.95)
 		self.connect_window = NewFrame('connect', width, height, x_pos, y_pos)
+		
+		connect_list = wx.ListCtrl(self.connect_window, size=(width*0.5,height*0.5), pos=(width*0.05,height*0.4),style=wx.TE_MULTILINE )
+		connect_list.SetBackgroundColour((0,0,0))
+		connect_list.InsertColumn(0, 'CAR NAME', width=150)
+		connect_list.InsertColumn(1, 'IP ADDRESS', width=150)
+		connect_list.InsertColumn(2, 'AVAILABLE', width=150)
+		connect_list.SetTextColour('white')
+		
+		connect_list.InsertStringItem(0, 'OpenRC Truggy')
+		connect_list.SetStringItem(0, 1, '192.168.1.11')
+		connect_list.SetStringItem(0, 2, "YES")
+		
+		connect_list.InsertStringItem(1, 'Internet Exploder')
+		connect_list.SetStringItem(1, 1, '192.168.1.14')
+		connect_list.SetStringItem(1, 2, "NO")
+
+		connect_list.InsertStringItem(2, 'ScrotumCutter')
+		connect_list.SetStringItem(2, 1, '192.168.0.21')
+		connect_list.SetStringItem(2, 2, "NO")
 
 	def options_window(self, event):
 		x_pos = (self.width * 0.025)
@@ -112,21 +134,12 @@ class MainFrame(wx.Frame):
 		width = (self.width * 0.3)
 		height = (self.height * 0.3)
 		self.quit_window = NewFrame('quit', width, height, x_pos, y_pos)
-		
-	def hide_buttons(self, event):
-		self.background_bitmap.Destroy()
-		self.fiper_logo.Destroy()
-		self.__init__(False)
-		
-		self.connect_button.Hide()
-		self.options_button.Hide()
-		self.quit_button.Hide()
 
 	def key_stroke_callback(self, event):
-		if (event.GetKeyCode() == wx.WXK_ESCAPE):
-			self.quit_window()
-			self.Unbind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)
-		
+		keycode = event.GetKeyCode()
+		if (keycode == wx.WXK_ESCAPE):
+			self.quit_window(wx.EVT_BUTTON)
+			
 class NewFrame(wx.Frame):
 	
 	def __init__(self, title, width, height, x, y):
@@ -142,11 +155,11 @@ class NewFrame(wx.Frame):
 			self.SetTransparent(tp)
 			wx.Sleep(.001)
 			tp += 10 
-			self.SetBackgroundColour('black')
+			self.SetBackgroundColour((30,30,30))
 			# Keep Cursor Shape for new Frame 
 			self.set_cursor()
 			self.Show()
-			if ( tp == 150 ): break # Max transparency
+			if ( tp == 200 ): break # Max transparency
 			
 		self.Bind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)	
 			
@@ -159,7 +172,7 @@ class NewFrame(wx.Frame):
 		if (event.GetKeyCode() == wx.WXK_ESCAPE):
 			self.Close()
 		if (event.GetKeyCode() == wx.WXK_RETURN):
-			self.input()
+			sys.exit(0)
 		event.Skip() 
 
 	def input(self):
