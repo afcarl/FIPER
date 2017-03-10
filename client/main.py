@@ -101,7 +101,22 @@ class MainFrame(wx.Frame):
 		width = (self.width * 0.95)
 		height = (self.height * 0.95)
 		self.connect_window = NewFrame('connect', width, height, x_pos, y_pos)
+		"""
+		dc = wx.ScreenDC() 
+		dc.DrawText('Hello transparent window',width*0.7, height*0.1)
+		"""
 		
+		w, h = 1000, 100
+		bmp = wx.EmptyBitmap(w, h)
+		dc = wx.MemoryDC()
+		dc.SelectObject(bmp)
+		dc.Clear()
+		text = "whatever"
+		tw, th = dc.GetTextExtent(text)
+		dc.DrawText(text, (w-tw)/2,  (h-th)/2)
+		dc.SelectObject(wx.NullBitmap)
+		wx.StaticBitmap(self.connect_window, -1, bmp)
+
 		self.ok_skin = wx.Bitmap('image\\menu\\buttons\\btn3.png')
 		self.ok_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn3_hover.png')
 		self.ok_skin_click = wx.Bitmap('image\\menu\\buttons\\btn3_click.png')
