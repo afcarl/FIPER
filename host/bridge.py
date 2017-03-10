@@ -37,33 +37,31 @@ class StreamDisplayer(thr.Thread):
         self.online = False
 
 
-class CarInterface(object):
+class NetworkEntity(object):
+
+    def __init__(self, ID):
+        # car_ID and framesize are sent throught the message socket
+        self.ID = ID
+
+    def out(self, *args, **kw):
+        """Wrapper for print(). Appends car's ID to every output line"""
+        sep, end = kw.get("sep", " "), kw.get("end", "\n")
+        print("IFACE {}: ".format(self.ID), *args, sep=sep, end=end)
+
+
+class CarInterface(NetworkEntity):
     """
     Abstraction of a car-server connection.
     Handles message-passing and stream receiving.
     """
 
-    def __init__(self, msock, srvip, rcvport):
-        # The server's message socket
-        self.msocket = msock
-        self.send_message = lambda m, t=0.5: Messaging.send(msock, m, t)
-        self.get_message = lambda: Messaging.recv(msock)
-
-        # car_ID and framesize are sent throught the message socket
-        self.car_ID = self.get_message()
-        self.framesize = [int(s) for s in self.get_message().split("x")]
-        self.out("Target ID:", self.car_ID)
+    def __init__(self, ID, frameshape, srvip, rcvport):
+        super(CarInterface, self).__init__(ID)
+        self.framesize = frameshape
         self.out("Framesize:", self.framesize)
-
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.dsocket.bind((srvip, rcvport))
         self.out("Stream receiver port bound to {}:{}".format(srvip, rcvport))
-        self.send_message(str(rcvport).encode(), t=0.5)
-
-    def out(self, *args, **kw):
-        """Wrapper for print(). Appends car's ID to every output line"""
-        sep, end = kw.get("sep", " "), kw.get("end", "\n")
-        print("IFACE {}: ".format(self.car_ID), *args, sep=sep, end=end)
 
     def get_stream(self):
         """Generator function that yields the received video frames"""
@@ -76,7 +74,13 @@ class CarInterface(object):
             data = data[datalen:]
 
     def __repr__(self):
-        return "CarInterface {}".format(self.car_ID)
+        return "CarInterface {}".format(self.ID)
+
+
+class ClientInterface(NetworkEntity):
+
+    def __init__(self, msock):
+        super(ClientInterface, self).__init__(msock)
 
 
 class FleetHandler(object):
@@ -105,6 +109,14 @@ class FleetHandler(object):
 
         self.running = False
         self.status = "Idle"
+
+    def add_new_connection(self, msock):
+        messenger = Messaging(msock)
+        entity_type, ID = messenger.recv()
+        if entity_type == "car":
+            frameshape = [int(s) for s in messenger.recv().split("x")]
+            self.cars[ID] = CarInterface(ID, frameshape, self.ip, self.nextport)
+            self.nextport += 1
 
     def start_listening(self):
         """
@@ -160,7 +172,7 @@ class FleetHandler(object):
         does the necessary cleanup
         """
         for ID, car in sorted(self.cars.items()):
-            Messaging.send(car.msocket, "shutdown", wait=0.1)
+            Messaging.send(car.msocket, "shutdown")
             if ID in self.watchers:
                 self.stop_watch(ID)
 
@@ -168,7 +180,7 @@ class FleetHandler(object):
         while self.cars:
             time.sleep(3)
             for ID, car in sorted(self.cars.items()):
-                msg = Messaging.recv(car.msocket, timeout=0.1)
+                msg = Messaging.recv(car.msocket)
                 if msg != "{} offline".format(ID):
                     continue
                 self.cars[ID].msocket.close()
@@ -233,12 +245,12 @@ class FleetHandler(object):
         while self.running:
             try:
                 conn, address = self.msocket.accept()
-            except:  # Except timeout
+            except socket.timeout:
                 time.sleep(1)
             else:
                 print("\nSERVER: Received connection from", address, "\n")
                 ifc = CarInterface(conn, self.ip, self.nextport)
-                self.cars[ifc.car_ID] = ifc
+                self.cars[ifc.ID] = ifc
                 self.nextport += 1
         self.msocket.close()
         print("SERVER: Listener exiting")
