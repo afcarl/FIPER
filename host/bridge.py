@@ -1,9 +1,11 @@
 from __future__ import print_function, absolute_import, division
 
+import time
 import socket
 import threading as thr
 from datetime import datetime
 
+import numpy as np
 import cv2
 
 from FIPER.generic import *
@@ -55,13 +57,16 @@ class CarInterface(NetworkEntity):
     Handles message-passing and stream receiving.
     """
 
-    def __init__(self, ID, frameshape, srvip, rcvport):
+    def __init__(self, ID, frameshape, messenger, srvip, rcvport):
         super(CarInterface, self).__init__(ID)
         self.framesize = frameshape
         self.out("Framesize:", self.framesize)
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.dsocket.bind((srvip, rcvport))
         self.out("Stream receiver port bound to {}:{}".format(srvip, rcvport))
+        self.messenger = messenger
+        self.send = messenger.send
+        self.recv = messenger.recv
 
     def get_stream(self):
         """Generator function that yields the received video frames"""
@@ -78,9 +83,7 @@ class CarInterface(NetworkEntity):
 
 
 class ClientInterface(NetworkEntity):
-
-    def __init__(self, msock):
-        super(ClientInterface, self).__init__(msock)
+    pass
 
 
 class FleetHandler(object):
@@ -91,17 +94,18 @@ class FleetHandler(object):
     stream display for multiple car-server connections.
     """
 
-    def __init__(self, ip=None):
+    def __init__(self, ip):
         self.ip = ip
         self.cars = {}
         self.watchers = {}
+        self.clients = {}
         self.since = datetime.now()
         self.nextport = STREAM_SERVER_PORT
 
         # Socket for receiving message connections
         self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.msocket.settimeout(3)
-        self.msocket.bind(((ip if ip is not None else my_ip()), MESSAGE_SERVER_PORT))
+        self.msocket.bind((ip, MESSAGE_SERVER_PORT))
         print("SERVER: msocket bound to", ip)
 
         # This thread looks for new cars on the network
@@ -112,11 +116,15 @@ class FleetHandler(object):
 
     def add_new_connection(self, msock):
         messenger = Messaging(msock)
-        entity_type, ID = messenger.recv()
+        entity_type, ID = messenger.recv(2)
         if entity_type == "car":
             frameshape = [int(s) for s in messenger.recv().split("x")]
-            self.cars[ID] = CarInterface(ID, frameshape, self.ip, self.nextport)
+            self.cars[ID] = CarInterface(ID, frameshape, messenger, self.ip, self.nextport)
             self.nextport += 1
+        elif entity_type == "client":
+            self.clients[ID] = ClientInterface(ID)
+        else:
+            assert False, "O.o? Got: {}".format(entity_type)
 
     def start_listening(self):
         """
@@ -134,11 +142,11 @@ class FleetHandler(object):
         """
         if ID in self.watchers:
             self.stop_watch(ID)
-        msck = self.cars[ID].msocket
-        Messaging.send(msck, "shutdown")
+        carifc = self.cars[ID]  # type: CarInterface
+        carifc.send("shutdown")
         time.sleep(3)
 
-        status = Messaging.recv(msck, timeout=5)
+        status = carifc.recv()
         if status is None:
             print("SERVER: {} didn't shut down as expected!".format(ID))
         elif status == "{} offline".format(ID):
@@ -154,16 +162,15 @@ class FleetHandler(object):
         which is run by a separate thread.
         """
 
-        Messaging.send(self.cars[ID].msocket, "stream on")
+        self.cars[ID].send("stream on")
         time.sleep(3)
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
 
     def stop_watch(self, ID, *args):
         """Tears down the StreamDisplayer and shuts down a stream"""
-        Messaging.send(self.cars[ID].msocket, "stream off")
+        self.cars[ID].send("stream off")
         self.watchers[ID].running = False
         time.sleep(3)
-        # assert not self.watchers[ID].online
         del self.watchers[ID]
 
     def shutdown(self, *args):
@@ -172,7 +179,7 @@ class FleetHandler(object):
         does the necessary cleanup
         """
         for ID, car in sorted(self.cars.items()):
-            Messaging.send(car.msocket, "shutdown")
+            car.send("shutdown")
             if ID in self.watchers:
                 self.stop_watch(ID)
 
@@ -180,10 +187,10 @@ class FleetHandler(object):
         while self.cars:
             time.sleep(3)
             for ID, car in sorted(self.cars.items()):
-                msg = Messaging.recv(car.msocket)
+                msg = car.recv()
                 if msg != "{} offline".format(ID):
                     continue
-                self.cars[ID].msocket.close()
+                self.cars[ID].messenger.running = False
                 self.cars[ID].dsocket.close()
                 del self.cars[ID]
 
@@ -202,7 +209,8 @@ class FleetHandler(object):
         repchain += "FIPER Server\n"
         repchain += "-" * (len(repchain) - 1) + "\n"
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
-        repchain += "Cars online: {}".format(len(self.cars))
+        repchain += "Cars online: {}\n".format(len(self.cars))
+        repchain += "Clients online: {}\n".format(len(self.clients))
         print("\n" + repchain + "\n")
 
     def console(self):

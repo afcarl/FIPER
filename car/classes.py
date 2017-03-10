@@ -2,6 +2,7 @@ from __future__ import print_function, absolute_import, division
 
 # STDLIB imports
 import os
+import time
 import socket
 import warnings
 import threading as thr
@@ -64,13 +65,12 @@ class Car(object):
         else:
             self.eye = CaptureDeviceMockerFile
 
-        self.msocket = None  # message transfer socket
+        self.messenger = None  # message channel wrapper
         self.send_message = None
         self.get_message = None
         self.server_ip = None  # this will be the UDP stream's target
         self.server_port = None
 
-        # Try to infer the local IP address
         self.address = address
 
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -96,13 +96,13 @@ class Car(object):
 
         # Initiate connection by setting up the message-passing
         # socket, then send ID and video frame shape to the server
-        self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.msocket.connect((server_ip, MESSAGE_SERVER_PORT))
-
+        msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        msocket.connect((server_ip, MESSAGE_SERVER_PORT))
         self.out("MSOCKET connected to {}:{}".format(server_ip, MESSAGE_SERVER_PORT))
-        Messaging.send(self.msocket, str(self.ID).encode(), wait=0.5)
-        Messaging.send(self.msocket, str(frame.shape)[1:-1].replace(", ", "x").encode())
-        self.server_port = int(Messaging.recv(self.msocket))
+        self.messenger = Messaging(msocket)
+        self.messenger.send(str(self.ID).encode())
+        self.messenger.send(str(frame.shape)[1:-1].replace(", ", "x").encode())
+        self.server_port = int(self.messenger.recv())
         self.out("Streaming to {}".format(self.server_port))
 
     def launch_stream(self):
@@ -113,9 +113,7 @@ class Car(object):
         (Turning streaming off, then on again wouldn't be possible)
         """
         self.streaming = True
-        self.stream_worker = thr.Thread(target=self.see,
-                                        name="{} Stream Worker"
-                                        .format(self.ID))
+        self.stream_worker = thr.Thread(target=self.see)
         self.stream_worker.start()
 
     def terminate_stream(self):

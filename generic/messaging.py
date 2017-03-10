@@ -44,5 +44,23 @@ class Messaging(object):
     def send(self, *msgs):
         self.sendbuffer.extend([m + b"ROGER" for m in msgs])
 
-    def recv(self, n=1):
-        return self.recvbuffer.pop(0) if n < 1 else self.recvbuffer[:n]
+    def recv(self, n=1, timeout=0):
+        msgs = []
+        for i in range(n):
+            try:
+                m = self.recvbuffer.pop(0)
+            except IndexError:
+                if timeout:
+                    try:
+                        m = self.recvbuffer.pop(0)
+                    except IndexError:
+                        m = None
+                else:
+                    m = None
+            msgs.append(m)
+        return msgs if len(msgs) > 1 else msgs[0]
+
+    def __del__(self):
+        self.running = False
+        time.sleep(3)
+        self.sock.close()
