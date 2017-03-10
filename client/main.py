@@ -17,7 +17,7 @@ class MainFrame(wx.Frame):
 		# Erase background from designated areas by DC ( for the buttons )
 		self.Bind(wx.EVT_ERASE_BACKGROUND, self.set_background)
 		#
-		# self.Bind(wx.EVT_KEY_UP, self.key_stroke_callback)
+		# self.Bind('<Escape>', self.quit_window(wx.EVT_BUTTON) )
 		# Place buttons on background
 		if ( place_buttons == True ):
 			self.place_buttons() 
@@ -102,24 +102,44 @@ class MainFrame(wx.Frame):
 		height = (self.height * 0.95)
 		self.connect_window = NewFrame('connect', width, height, x_pos, y_pos)
 		
+		self.ok_skin = wx.Bitmap('image\\menu\\buttons\\btn3.png')
+		self.ok_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn3_hover.png')
+		self.ok_skin_click = wx.Bitmap('image\\menu\\buttons\\btn3_click.png')
+		
+		self.ok_button = wx.BitmapButton(			self.connect_window, -1, self.ok_skin, 
+													pos=(width*0.8,height*0.8), 
+													size=(260,130)					)
+		self.ok_button.SetBitmapHover(self.ok_skin_hover)
+		self.ok_button.SetBitmapSelected(self.ok_skin_click)
+		
 		connect_list = wx.ListCtrl(self.connect_window, size=(width*0.5,height*0.5), pos=(width*0.05,height*0.4),style=wx.TE_MULTILINE )
 		connect_list.SetBackgroundColour((0,0,0))
-		connect_list.InsertColumn(0, 'CAR NAME', width=150)
-		connect_list.InsertColumn(1, 'IP ADDRESS', width=150)
-		connect_list.InsertColumn(2, 'AVAILABLE', width=150)
+		
+		cell_width = 150
+		connect_list.InsertColumn(0, 'CAR NAME', width=cell_width)
+		connect_list.InsertColumn(1, 'IP ADDRESS', width=cell_width)
+		connect_list.InsertColumn(2, 'AVAILABLE', width=cell_width)
+		connect_list.InsertColumn(3, 'PING', width=cell_width)
 		connect_list.SetTextColour('white')
 		
-		connect_list.InsertStringItem(0, 'OpenRC Truggy')
-		connect_list.SetStringItem(0, 1, '192.168.1.11')
-		connect_list.SetStringItem(0, 2, "YES")
-		
-		connect_list.InsertStringItem(1, 'Internet Exploder')
-		connect_list.SetStringItem(1, 1, '192.168.1.14')
-		connect_list.SetStringItem(1, 2, "NO")
 
-		connect_list.InsertStringItem(2, 'ScrotumCutter')
-		connect_list.SetStringItem(2, 1, '192.168.0.21')
-		connect_list.SetStringItem(2, 2, "NO")
+		row_index = 0
+		connect_list.InsertStringItem(row_index, 'OpenRC Truggy')
+		connect_list.SetStringItem(row_index, 1, '192.168.1.11')
+		connect_list.SetStringItem(row_index, 2, 'YES')
+		connect_list.SetStringItem(row_index, 3, '66')
+		
+		row_index = 1
+		connect_list.InsertStringItem(row_index, 'Internet Exploder')
+		connect_list.SetStringItem(row_index, 1, '192.168.1.14')
+		connect_list.SetStringItem(row_index, 2, 'NO')
+		connect_list.SetStringItem(row_index, 3, '0')
+
+		row_index = 2
+		connect_list.InsertStringItem(row_index, 'ScrotumCutter')
+		connect_list.SetStringItem(row_index, 1, '192.168.0.21')
+		connect_list.SetStringItem(row_index, 2, 'NO')
+		connect_list.SetStringItem(row_index, 3, '30')
 
 	def options_window(self, event):
 		x_pos = (self.width * 0.025)
@@ -136,9 +156,7 @@ class MainFrame(wx.Frame):
 		self.quit_window = NewFrame('quit', width, height, x_pos, y_pos)
 
 	def key_stroke_callback(self, event):
-		keycode = event.GetKeyCode()
-		if (keycode == wx.WXK_ESCAPE):
-			self.quit_window(wx.EVT_BUTTON)
+		self.quit_window(wx.EVT_BUTTON)
 			
 class NewFrame(wx.Frame):
 	
@@ -162,7 +180,7 @@ class NewFrame(wx.Frame):
 			if ( tp == 200 ): break # Max transparency
 			
 		self.Bind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)	
-			
+		
 	def set_cursor(self):
 		cursor_path = ('image\\menu\\cursor.ico')
 		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
@@ -177,6 +195,7 @@ class NewFrame(wx.Frame):
 
 	def input(self):
 		print 'Input has been given.'
+
 	
 class Main(wx.App):
    
