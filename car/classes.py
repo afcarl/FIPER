@@ -1,4 +1,4 @@
-from __future__ import print_function, absolute_import, division
+from __future__ import print_function, absolute_import, division, unicode_literals
 
 # STDLIB imports
 import os
@@ -40,6 +40,8 @@ class CarBase(object):
     Video frames are forwarded to a central server for further processing
     """
 
+    entity_type = "car"
+
     def __init__(self, ID, address):
         self.ID = ID
 
@@ -52,7 +54,6 @@ class CarBase(object):
 
         self.messenger = None  # message channel wrapper
         self.send_message = None
-        self.get_message = None
         self.server_ip = None  # this will be the AV stream's target
 
         self.address = address
@@ -70,7 +71,7 @@ class CarBase(object):
 
         self.server_ip = server_ip
 
-        def get_my_frame_shape():
+        def get_my_video_frame_shape():
             success, frame = self.eye.read()
             if not success:
                 self.eye = CaptureDeviceMockerWhite
@@ -81,25 +82,31 @@ class CarBase(object):
             return frame.shape
 
         def set_up_messenger_channel():
+            msgtag = "{}-{}:HELLO;".format(self.entity_type, self.ID)
+
             msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             msocket.connect((server_ip, MESSAGE_SERVER_PORT))
             self.out("MSOCKET connected to {}:{}".format(server_ip, MESSAGE_SERVER_PORT))
-            return Messaging(msocket)
 
-        def send_ID_and_frame_shape_to_server():
-            self.messenger.send(str(self.ID).encode())
-            self.messenger.send(str(frshape)[1:-1].replace(", ", "x").encode())
+            self.messenger = Messaging(msocket)
+            self.send_message = lambda *msgs: self.messenger.send(*[msgtag + msg for msg in msgs])
+            self.get_message = lambda n=1, timeout=0: self.messenger.recv(n, timeout)
 
-        def set_up_streaming_socket():
+        def send_an_introduction_to_the_server():
+            introduction = str(frshape[1:-1].replace(", ", "x"))
+            self.send_message(introduction.encode())
+
+        def set_up_AV_streaming_channel():
             self.dsocket.listen(1)
             self.dsocket, addr = self.dsocket.accept()
             if addr != server_ip:
                 warnings.warn("Received data connection from an unknown IP:", addr)
 
-        frshape = get_my_frame_shape()
-        self.messenger = set_up_messenger_channel()
-        send_ID_and_frame_shape_to_server()
-        set_up_streaming_socket()
+        frshape = get_my_video_frame_shape()
+        set_up_messenger_channel()
+        self.send_message = self.messenger.send
+        send_an_introduction_to_the_server()
+        set_up_AV_streaming_channel()
 
     def launch_stream(self):
         """

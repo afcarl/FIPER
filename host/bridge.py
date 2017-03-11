@@ -1,4 +1,4 @@
-from __future__ import print_function, absolute_import, division
+from __future__ import print_function, absolute_import, division, unicode_literals
 
 import socket
 import threading as thr
@@ -7,7 +7,7 @@ from datetime import datetime
 
 import cv2
 
-from FIPER.host.interfaces import CarInterfaceTCP
+from FIPER.host.interfaces import CarInterface
 from FIPER.generic import *
 
 
@@ -70,7 +70,7 @@ class FleetHandler(object):
         messenger = Messaging(msock)
         entity_type, ID = messenger.recv(2)
         frameshape = [int(s) for s in messenger.recv().split("x")]
-        self.cars[ID] = CarInterfaceTCP(ID, addr, frameshape, messenger, self.ip, self.nextport)
+        self.cars[ID] = CarInterface(ID, addr, frameshape, messenger, addr, self.nextport)
         self.nextport += 1
 
     def start_listening(self):
@@ -157,7 +157,6 @@ class FleetHandler(object):
         repchain += "-" * (len(repchain) - 1) + "\n"
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
         repchain += "Cars online: {}\n".format(len(self.cars))
-        repchain += "Clients online: {}\n".format(len(self.clients))
         print("\n" + repchain + "\n")
 
     def console(self):
@@ -204,7 +203,7 @@ class FleetHandler(object):
                 time.sleep(1)
             else:
                 print("\nSERVER: Received connection from", address, "\n")
-                ifc = CarInterface(conn, self.ip, self.nextport)
+                ifc = CarInterfaceTCP(conn, self.ip, self.nextport)
                 self.cars[ifc.ID] = ifc
                 self.nextport += 1
         self.msocket.close()

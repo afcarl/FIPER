@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, absolute_import, unicode_literals
 
 import time
 import threading as thr
@@ -9,7 +9,8 @@ class Messaging(object):
     Groups the messaging connections together
     """
 
-    def __init__(self, sock):
+    def __init__(self, sock, tag=""):
+        self.tag = tag
         self.recvbuffer = []
         self.sendbuffer = []
         self.sock = sock

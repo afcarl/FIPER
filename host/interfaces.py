@@ -24,13 +24,13 @@ class NetworkEntity(object):
         print("IFACE {}: ".format(self.ID), *args, sep=sep, end=end)
 
 
-class CarInterFaceBase(NetworkEntity):
+class _CarInterFaceBase(NetworkEntity):
     """
     Abstraction of a car-server connection.
     """
 
     def __init__(self, ID, ip, frameshape, messenger):
-        super(CarInterFaceBase, self).__init__(ID=ID, ip=ip, messenger=messenger)
+        super(_CarInterFaceBase, self).__init__(ID=ID, ip=ip, messenger=messenger)
         self.framesize = frameshape
         self.out("Framesize:", self.framesize)
         self.dsocket = None
@@ -46,7 +46,7 @@ class CarInterFaceBase(NetworkEntity):
             data = data[datalen:]
 
 
-class UDPMixin(object):
+class _UDPStreamMixin(object):
     """
     Handles message-passing and stream receiving via UDP.
     """
@@ -56,7 +56,7 @@ class UDPMixin(object):
         self.dsocket.bind((srv_ip, port))
 
 
-class TCPMixin(object):
+class _TCPStreamMixin(object):
     """
     Handles message-passing and stream receiving via TCP.
     """
@@ -64,6 +64,12 @@ class TCPMixin(object):
     def __init__(self, cli_ip, port):
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.dsocket.connect((cli_ip, port))
+
+
+class CarInterface(_CarInterFaceBase, _TCPStreamMixin):
+    def __init__(self, ID, ip, frameshape, messenger, cli_ip, port):
+        _CarInterFaceBase.__init__(self, ID, ip, frameshape, messenger)
+        _TCPStreamMixin.__init__(self, cli_ip, port)
 
 
 class ClientInterface(NetworkEntity):
