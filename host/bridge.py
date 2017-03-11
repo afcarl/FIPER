@@ -1,13 +1,13 @@
 from __future__ import print_function, absolute_import, division
 
-import time
 import socket
 import threading as thr
+import time
 from datetime import datetime
 
-import numpy as np
 import cv2
 
+from FIPER.host.interfaces import CarInterfaceTCP
 from FIPER.generic import *
 
 
@@ -39,53 +39,6 @@ class StreamDisplayer(thr.Thread):
         self.online = False
 
 
-class NetworkEntity(object):
-
-    def __init__(self, ID):
-        # car_ID and framesize are sent throught the message socket
-        self.ID = ID
-
-    def out(self, *args, **kw):
-        """Wrapper for print(). Appends car's ID to every output line"""
-        sep, end = kw.get("sep", " "), kw.get("end", "\n")
-        print("IFACE {}: ".format(self.ID), *args, sep=sep, end=end)
-
-
-class CarInterface(NetworkEntity):
-    """
-    Abstraction of a car-server connection.
-    Handles message-passing and stream receiving.
-    """
-
-    def __init__(self, ID, frameshape, messenger, srvip, rcvport):
-        super(CarInterface, self).__init__(ID)
-        self.framesize = frameshape
-        self.out("Framesize:", self.framesize)
-        self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.dsocket.bind((srvip, rcvport))
-        self.out("Stream receiver port bound to {}:{}".format(srvip, rcvport))
-        self.messenger = messenger
-        self.send = messenger.send
-        self.recv = messenger.recv
-
-    def get_stream(self):
-        """Generator function that yields the received video frames"""
-        datalen = np.prod(self.framesize)
-        data = b""
-        while 1:
-            while len(data) < datalen:
-                data += self.dsocket.recv(1024)
-            yield np.fromstring(data[:datalen], dtype=DTYPE).reshape(self.framesize)
-            data = data[datalen:]
-
-    def __repr__(self):
-        return "CarInterface {}".format(self.ID)
-
-
-class ClientInterface(NetworkEntity):
-    pass
-
-
 class FleetHandler(object):
 
     """
@@ -98,7 +51,6 @@ class FleetHandler(object):
         self.ip = ip
         self.cars = {}
         self.watchers = {}
-        self.clients = {}
         self.since = datetime.now()
         self.nextport = STREAM_SERVER_PORT
 
@@ -114,17 +66,12 @@ class FleetHandler(object):
         self.running = False
         self.status = "Idle"
 
-    def add_new_connection(self, msock):
+    def add_new_connection(self, msock, addr):
         messenger = Messaging(msock)
         entity_type, ID = messenger.recv(2)
-        if entity_type == "car":
-            frameshape = [int(s) for s in messenger.recv().split("x")]
-            self.cars[ID] = CarInterface(ID, frameshape, messenger, self.ip, self.nextport)
-            self.nextport += 1
-        elif entity_type == "client":
-            self.clients[ID] = ClientInterface(ID)
-        else:
-            assert False, "O.o? Got: {}".format(entity_type)
+        frameshape = [int(s) for s in messenger.recv().split("x")]
+        self.cars[ID] = CarInterfaceTCP(ID, addr, frameshape, messenger, self.ip, self.nextport)
+        self.nextport += 1
 
     def start_listening(self):
         """
@@ -142,7 +89,7 @@ class FleetHandler(object):
         """
         if ID in self.watchers:
             self.stop_watch(ID)
-        carifc = self.cars[ID]  # type: CarInterface
+        carifc = self.cars[ID]
         carifc.send("shutdown")
         time.sleep(3)
 
