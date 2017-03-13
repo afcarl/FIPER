@@ -15,7 +15,7 @@ from FIPER.generic import *
 
 print("OpenCV version:", cv2.__version__)
 
-DUMMY_VIDEOFILE = ""
+DUMMY_VIDEOFILE = "/data/Prog/data/raw/vid/go.avi"
 DUMMY_FRAMESIZE = (640, 480, 3)  # = 921,600 B in uint8
 
 
@@ -59,7 +59,7 @@ class CarBase(object):
         self.address = address
 
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.dsocket.bind((address, STREAM_SERVER_PORT)
+        self.dsocket.bind((address, STREAM_SERVER_PORT))
 
         self.live = True
         self.streaming = False
@@ -82,25 +82,25 @@ class CarBase(object):
             return frame.shape
 
         def set_up_messenger_channel():
-            msgtag = "{}-{}:".format(self.entity_type, self.ID)
+            msgtag = b"{}-{}:".format(self.entity_type, self.ID)
 
             msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             msocket.connect((server_ip, MESSAGE_SERVER_PORT))
             self.out("MSOCKET connected to {}:{}".format(server_ip, MESSAGE_SERVER_PORT))
 
-            self.messenger = Messaging(msocket)
+            self.messenger = Messaging(msocket, tag=msgtag)
             self.send_message = lambda *msgs: self.messenger.send(*[msgtag + msg for msg in msgs])
             self.get_message = lambda n=1, timeout=0: self.messenger.recv(n, timeout)
 
         def send_an_introduction_to_the_server():
-            introduction = "HELLO;" + str(frshape[1:-1].replace(", ", "x"))
+            introduction = "HELLO;" + str(frshape)[1:-1].replace(", ", "x")
             self.send_message(introduction.encode())
 
         def set_up_AV_streaming_channel():
             self.dsocket.listen(1)
-            self.dsocket, addr = self.dsocket.accept()
-            if addr != server_ip:
-                warnings.warn("Received data connection from an unknown IP:", addr)
+            self.dsocket, (ip, port) = self.dsocket.accept()
+            if ip != server_ip:
+                warnings.warn("Received data connection from an unknown IP: {}".format(addr))
 
         frshape = get_my_video_frame_shape()
         set_up_messenger_channel()
@@ -269,8 +269,11 @@ def main():
         localIP, serverIP, carID = readargs()
 
     lightning_mcqueen = CarTCP(ID=carID, address=localIP)
-    lightning_mcqueen.connect(serverIP)
-    lightning_mcqueen.mainloop()
+    try:
+        lightning_mcqueen.connect(serverIP)
+        lightning_mcqueen.mainloop()
+    finally:
+        lightning_mcqueen.shutdown()
 
     print("OUTSIDE: Car was shut down nicely.")
 

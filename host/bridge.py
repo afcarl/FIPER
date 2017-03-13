@@ -69,7 +69,8 @@ class FleetHandler(object):
     def add_new_connection(self, msock, addr):
         messenger = Messaging(msock)
         # Introduction is: {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
-        introduction = messenger.recv()
+        introduction = messenger.recv(timeout=3)
+        print("SERVER: got introduction:", introduction)
         if ":HELLO;" not in introduction:
             raise RuntimeError("Wrong introductory message from a network entity!")
         introduction = introduction.split(":HELLO;")
@@ -130,7 +131,9 @@ class FleetHandler(object):
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
 
     def stop_watch(self, ID, *args):
-        """Tears down the StreamDisplayer and shuts down a stream"""
+        """
+        Tears down the StreamDisplayer and shuts down a stream
+        """
         self.cars[ID].send("stream off")
         self.watchers[ID].running = False
         time.sleep(3)
@@ -167,7 +170,9 @@ class FleetHandler(object):
         self.running = False
 
     def report(self, *args):
-        """Prints a nice server status report"""
+        """
+        Prints a nice server status report
+        """
         repchain = ("Online " if self.running else "Offline ")
         repchain += "FIPER Server\n"
         repchain += "-" * (len(repchain) - 1) + "\n"
@@ -214,14 +219,12 @@ class FleetHandler(object):
         self.msocket.listen(1)
         while self.running:
             try:
-                conn, address = self.msocket.accept()
+                conn, (ip, port) = self.msocket.accept()
             except socket.timeout:
                 time.sleep(1)
             else:
-                print("\nSERVER: Received connection from", address, "\n")
-                ifc = CarInterface(conn, self.ip, self.nextport)
-                self.cars[ifc.ID] = ifc
-                self.nextport += 1
+                print("\nSERVER: Received connection from", ":".join((ip, str(port))), "\n")
+                self.add_new_connection(conn, ip)
         self.msocket.close()
         print("SERVER: Listener exiting")
 
@@ -242,7 +245,10 @@ def main():
         serverIP = readargs()
 
     server = FleetHandler(serverIP)
-    server.console()
+    try:
+        server.console()
+    finally:
+        server.shutdown()
 
     time.sleep(3)
     print("OUTSIDE: Exiting...")
