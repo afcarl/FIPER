@@ -68,9 +68,25 @@ class FleetHandler(object):
 
     def add_new_connection(self, msock, addr):
         messenger = Messaging(msock)
-        entity_type, ID = messenger.recv(2)
-        frameshape = [int(s) for s in messenger.recv().split("x")]
-        self.cars[ID] = CarInterface(ID, addr, frameshape, messenger, addr, self.nextport)
+        # Introduction is: {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
+        introduction = messenger.recv()
+        if ":HELLO;" not in introduction:
+            raise RuntimeError("Wrong introductory message from a network entity!")
+        introduction = introduction.split(":HELLO;")
+        entity_type, ID = introduction[0].split("-")
+        if entity_type == "car":
+            try:
+                frameshape = [int(s) for s in introduction[1].split("x")]
+            except ValueError:
+                raise ValueError("Received wrong frameshape definition from {}!\nGot {}"
+                                 .format(ID, introduction[1]))
+            if len(frameshape) < 2 or len(frameshape) > 3:
+                errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
+                          "Got {} from {}!".format(ID, frameshape))
+                raise ValueError(errmsg)
+            self.cars[ID] = CarInterface(ID, addr, frameshape, messenger, addr, self.nextport)
+        else:
+            print("Unknown entity type:", entity_type)
         self.nextport += 1
 
     def start_listening(self):
@@ -203,7 +219,7 @@ class FleetHandler(object):
                 time.sleep(1)
             else:
                 print("\nSERVER: Received connection from", address, "\n")
-                ifc = CarInterfaceTCP(conn, self.ip, self.nextport)
+                ifc = CarInterface(conn, self.ip, self.nextport)
                 self.cars[ifc.ID] = ifc
                 self.nextport += 1
         self.msocket.close()

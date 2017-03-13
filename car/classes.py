@@ -59,7 +59,7 @@ class CarBase(object):
         self.address = address
 
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.dsocket.bind(address)
+        self.dsocket.bind((address, STREAM_SERVER_PORT)
 
         self.live = True
         self.streaming = False
@@ -82,7 +82,7 @@ class CarBase(object):
             return frame.shape
 
         def set_up_messenger_channel():
-            msgtag = "{}-{}:HELLO;".format(self.entity_type, self.ID)
+            msgtag = "{}-{}:".format(self.entity_type, self.ID)
 
             msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             msocket.connect((server_ip, MESSAGE_SERVER_PORT))
@@ -93,7 +93,7 @@ class CarBase(object):
             self.get_message = lambda n=1, timeout=0: self.messenger.recv(n, timeout)
 
         def send_an_introduction_to_the_server():
-            introduction = str(frshape[1:-1].replace(", ", "x"))
+            introduction = "HELLO;" + str(frshape[1:-1].replace(", ", "x"))
             self.send_message(introduction.encode())
 
         def set_up_AV_streaming_channel():
