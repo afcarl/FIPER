@@ -1,8 +1,8 @@
 from __future__ import print_function, absolute_import, division, unicode_literals
 
+import time
 import socket
 import threading as thr
-import time
 from datetime import datetime
 
 import cv2
@@ -39,6 +39,119 @@ class StreamDisplayer(thr.Thread):
         self.online = False
 
 
+class Console(thr.Thread):
+
+    """
+    Abstraction of the server console.
+    """
+    def __init__(self, master):
+        """
+        :param master: FleetHandler (server) object
+        """
+        thr.Thread.__init__(self, name="Console")
+        self.master = master
+        self.commands = {
+            "help": lambda: print("Available commands:", ", ".join(sorted(self.commands))),
+            "cars": lambda: print("Cars online:", ", ".join(sorted(self.master.cars))),
+            "kill": self.master.kill_car,
+            "watch": self.master.watch_car,
+            "shutdown": self.master.shutdown,
+            "status": self.master.report,
+            "start": self.master.start_listening,
+            "message": lambda ID, *msg: Messaging.send(self.master.cars[ID].msocket, " ".join(msg))
+        }
+
+    @property
+    def prompt(self):
+        return "FIPER bridge [{}] > ".format(self.master.status)
+
+    def run(self):
+        """
+        Server console main loop
+        """
+        while 1:
+            cmd, args = self.read_cmd()
+            if not cmd:
+                continue
+            elif cmd == "shutdown":
+                break
+        print("SERVER: Console shut down correctly")
+
+    def read_cmd(self):
+        c = raw_input(self.prompt).split(" ")
+        cmd, args = c[0].lower(), c[1:]
+        return cmd, args
+
+    def cmd_parser(self, cmd, args):
+        if cmd[0] not in self.commands:
+            print("SERVER: Unknown command:", cmd)
+        else:
+            self.commands[cmd](*args)
+
+
+class Listener(thr.Thread):
+
+    instances = 1
+
+    def __init__(self, master):
+        thr.Thread.__init__(self, name="Listener-{}".format(Listener.instances))
+        self.master = master
+        Listener.instances += 1
+
+    def run(self):
+        try:
+            self.setup_server()
+            self.mainloop()
+        except:
+            raise
+        finally:
+            self.teardown()
+
+    def setup_server(self):
+        self.master.running = True
+        self.master.status = "Listening"
+        print("\nSERVER {}: Awaiting connections...\n".format(self.name))
+        self.master.msocket.listen(1)
+
+    def mainloop(self):
+        while self.master.running:
+            try:
+                conn, (ip, port) = self.master.msocket.accept()
+            except socket.timeout:
+                time.sleep(1)
+            else:
+                print("\nSERVER: Received connection from", ":".join((ip, str(port))), "\n")
+                self.add_new_connection(conn, ip)
+
+    def teardown(self):
+        self.master.msocket.close()
+        print("SERVER {}: exiting".format(self.name))
+
+    def add_new_connection(self, msock, addr):
+        # TODO: split this monster into smaller methods
+        messenger = Messaging(msock)
+        # Introduction is: {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
+        introduction = messenger.recv(timeout=3)
+        print("SERVER: got introduction:", introduction)
+        if ":HELLO;" not in introduction:
+            raise RuntimeError("Wrong introductory message from a network entity!")
+        introduction = introduction.split(":HELLO;")
+        entity_type, ID = introduction[0].split("-")
+        if entity_type == "car":
+            try:
+                frameshape = [int(s) for s in introduction[1].split("x")]
+            except ValueError:
+                raise ValueError("Received wrong frameshape definition from {}!\nGot {}"
+                                 .format(ID, introduction[1]))
+            if len(frameshape) < 2 or len(frameshape) > 3:
+                errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
+                          "Got {} from {}!".format(ID, frameshape))
+                raise ValueError(errmsg)
+            self.master.cars[ID] = CarInterface(ID, addr, frameshape, messenger, addr)
+        else:
+            print("Unknown entity type:", entity_type)
+
+
 class FleetHandler(object):
 
     """
@@ -60,44 +173,10 @@ class FleetHandler(object):
         self.msocket.bind((ip, MESSAGE_SERVER_PORT))
         print("SERVER: msocket bound to", ip)
 
-        # This thread looks for new cars on the network
-        self.listener = thr.Thread(name="Listener", target=self.listen)
-
+        self.console = Console(self)
+        self.listener = Listener(self)
         self.running = False
         self.status = "Idle"
-
-    def add_new_connection(self, msock, addr):
-        messenger = Messaging(msock)
-        # Introduction is: {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
-        introduction = messenger.recv(timeout=3)
-        print("SERVER: got introduction:", introduction)
-        if ":HELLO;" not in introduction:
-            raise RuntimeError("Wrong introductory message from a network entity!")
-        introduction = introduction.split(":HELLO;")
-        entity_type, ID = introduction[0].split("-")
-        if entity_type == "car":
-            try:
-                frameshape = [int(s) for s in introduction[1].split("x")]
-            except ValueError:
-                raise ValueError("Received wrong frameshape definition from {}!\nGot {}"
-                                 .format(ID, introduction[1]))
-            if len(frameshape) < 2 or len(frameshape) > 3:
-                errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
-                          "Got {} from {}!".format(ID, frameshape))
-                raise ValueError(errmsg)
-            self.cars[ID] = CarInterface(ID, addr, frameshape, messenger, addr, self.nextport)
-        else:
-            print("Unknown entity type:", entity_type)
-        self.nextport += 1
-
-    def start_listening(self):
-        """
-        Launches the listener thread,
-        which looks for new cars on the network
-        """
-        self.running = True
-        self.status = "Listening"
-        self.listener.start()
 
     def kill_car(self, ID, *args):
         """
@@ -179,54 +258,6 @@ class FleetHandler(object):
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
         repchain += "Cars online: {}\n".format(len(self.cars))
         print("\n" + repchain + "\n")
-
-    def console(self):
-        """
-        Server console main loop
-        """
-        commands = {
-            "help": lambda: print("Available commands:", ", ".join(sorted(commands))),
-            "cars": lambda: print("Cars online:", ", ".join(sorted(self.cars))),
-            "kill": self.kill_car,
-            "watch": self.watch_car,
-            "shutdown": self.shutdown,
-            "status": self.report,
-            "start": self.start_listening,
-            "message": lambda ID, *msg: Messaging.send(self.cars[ID].msocket, " ".join(msg))
-        }
-        while 1:
-            prompt = "FIPER bridge [{}] > ".format(self.status)
-            c = raw_input(prompt).split(" ")
-            cmd, args = c[0].lower(), c[1:]
-            if not cmd:
-                time.sleep(0.1)
-                continue
-            if c[0] not in commands:
-                print("SERVER: Unknown command:", cmd)
-            else:
-                # print("SERVER: Reveived command:", cmd)
-                commands[cmd](*args)
-            if cmd == "shutdown":
-                print("SERVER: Console shut down correctly")
-                break
-
-    def listen(self):
-        """
-        Accepts connections from cars
-        self.listener runs this in a separate thread
-        """
-        print("\nSERVER: Awaiting connections...\n")
-        self.msocket.listen(1)
-        while self.running:
-            try:
-                conn, (ip, port) = self.msocket.accept()
-            except socket.timeout:
-                time.sleep(1)
-            else:
-                print("\nSERVER: Received connection from", ":".join((ip, str(port))), "\n")
-                self.add_new_connection(conn, ip)
-        self.msocket.close()
-        print("SERVER: Listener exiting")
 
 
 def readargs():

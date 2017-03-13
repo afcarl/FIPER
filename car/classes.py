@@ -19,7 +19,7 @@ DUMMY_VIDEOFILE = "/data/Prog/data/raw/vid/go.avi"
 DUMMY_FRAMESIZE = (640, 480, 3)  # = 921,600 B in uint8
 
 
-class CaptureDeviceMockerWhite(object):
+class CaptureDeviceMocker(object):
     """Mocks the interface of cv2.VideoCapture"""
 
     @staticmethod
@@ -48,7 +48,7 @@ class CarBase(object):
         if not DUMMY_VIDEOFILE:
             self.eye = cv2.VideoCapture(0)
         elif not os.path.exists(DUMMY_VIDEOFILE):
-            self.eye = CaptureDeviceMockerWhite
+            self.eye = CaptureDeviceMocker
         else:
             self.eye = cv2.VideoCapture(DUMMY_VIDEOFILE)
 
@@ -74,7 +74,7 @@ class CarBase(object):
         def get_my_video_frame_shape():
             success, frame = self.eye.read()
             if not success:
-                self.eye = CaptureDeviceMockerWhite
+                self.eye = CaptureDeviceMocker
                 frame = self.eye.read()[1]
                 msg = "Capture device unreachable!\n"
                 msg += "Falling back to white noise stream!"
@@ -195,7 +195,7 @@ class CarTCP(CarBase):
         super(CarTCP, self).connect(server_ip)
 
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.dsocket.bind(self.address)
+        self.dsocket.bind((self.address, STREAM_SERVER_PORT))
         self.dsocket.listen(1)
         self.dsocket, addr = self.dsocket.accept()
         if addr != server_ip:
@@ -272,6 +272,8 @@ def main():
     try:
         lightning_mcqueen.connect(serverIP)
         lightning_mcqueen.mainloop()
+    except:
+        raise
     finally:
         lightning_mcqueen.shutdown()
 

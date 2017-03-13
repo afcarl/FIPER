@@ -48,7 +48,7 @@ class _CarInterFaceBase(NetworkEntity):
 
 class _UDPStreamMixin(object):
     """
-    Handles message-passing and stream receiving via UDP.
+    Handles stream receiving via UDP.
     """
 
     def __init__(self, srv_ip, port):
@@ -58,18 +58,19 @@ class _UDPStreamMixin(object):
 
 class _TCPStreamMixin(object):
     """
-    Handles message-passing and stream receiving via TCP.
+    Handles stream receiving via TCP.
     """
 
-    def __init__(self, cli_ip, port):
+    def __init__(self, cli_ip):
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.dsocket.connect((cli_ip, port))
+        self.dsocket.connect((cli_ip, STREAM_SERVER_PORT))
 
 
 class CarInterface(_CarInterFaceBase, _TCPStreamMixin):
-    def __init__(self, ID, ip, frameshape, messenger, cli_ip, port):
+
+    def __init__(self, ID, ip, frameshape, messenger, cli_ip):
         _CarInterFaceBase.__init__(self, ID, ip, frameshape, messenger)
-        _TCPStreamMixin.__init__(self, cli_ip, port)
+        _TCPStreamMixin.__init__(self, cli_ip)
 
 
 class ClientInterface(NetworkEntity):
