@@ -44,6 +44,7 @@ class Console(thr.Thread):
     """
     Abstraction of the server console.
     """
+
     def __init__(self, master):
         """
         :param master: FleetHandler (server) object
@@ -105,7 +106,8 @@ class Listener(thr.Thread):
 
     def __init__(self, master):
         thr.Thread.__init__(self, name="Listener-{}".format(Listener.instances))
-        self.master = master
+        self.master = master  # type: FleetHandler
+
         Listener.instances += 1
 
     def run(self):
