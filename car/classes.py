@@ -32,6 +32,55 @@ class CaptureDeviceMocker(object):
         return True, white_noise(DUMMY_FRAMESIZE)
 
 
+class TCPStreamer:
+
+    def __init__(self, master, sock):
+        self.master = master
+        if not DUMMY_VIDEOFILE:
+            self.eye = cv2.VideoCapture(0)
+        elif not os.path.exists(DUMMY_VIDEOFILE):
+            self.eye = CaptureDeviceMocker
+        else:
+            self.eye = cv2.VideoCapture(DUMMY_VIDEOFILE)
+
+        success, frame = self.eye.read()
+        if not success:
+            warnings.warn("Capture device unreachable, falling back to white noise stream!",
+                          RuntimeWarning)
+            self.eye = CaptureDeviceMocker
+            success, frame = self.eye.read()
+        self.frameshape = frame.shape
+
+        self.sock = sock
+        self.worker = None
+
+    def start(self):
+        self.worker = thr.Thread(target=self.run, name="Streamer")
+        self.worker.start()
+
+    def frame(self):
+        return self.eye.read()
+
+    def run(self):
+        """
+        Obtain frames from the capture device via OpenCV.
+        Send the frames to the UDP client (the main server)
+        """
+        pushed = 0
+        while self.master.streaming:
+            success, frame = self.frame()
+            ##########################################
+            # Data preprocessing has to be done here #
+            serial = frame.astype(DTYPE).tostring()  #
+            ##########################################
+            for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
+                self.sock.send(slc)
+            pushed += 1
+            print("\rPushed {:>3} frames".format(pushed), end="")
+        print("Stream terminated!")
+        self.worker = None
+
+
 class CarBase(object):
 
     """
@@ -45,21 +94,10 @@ class CarBase(object):
     def __init__(self, ID, address):
         self.ID = ID
 
-        if not DUMMY_VIDEOFILE:
-            self.eye = cv2.VideoCapture(0)
-        elif not os.path.exists(DUMMY_VIDEOFILE):
-            self.eye = CaptureDeviceMocker
-        else:
-            self.eye = cv2.VideoCapture(DUMMY_VIDEOFILE)
-
         self.messenger = None  # message channel wrapper
         self.send_message = None
-        self.server_ip = None  # this will be the AV stream's target
 
         self.address = address
-
-        self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.dsocket.bind((address, STREAM_SERVER_PORT))
 
         self.live = True
         self.streaming = False
@@ -69,44 +107,30 @@ class CarBase(object):
     def connect(self, server_ip):
         """Establishes connections with the server"""
 
-        self.server_ip = server_ip
-
-        def get_my_video_frame_shape():
-            success, frame = self.eye.read()
-            if not success:
-                self.eye = CaptureDeviceMocker
-                frame = self.eye.read()[1]
-                msg = "Capture device unreachable!\n"
-                msg += "Falling back to white noise stream!"
-                warnings.warn(msg)
-            return frame.shape
-
-        def set_up_messenger_channel():
-            msgtag = b"{}-{}:".format(self.entity_type, self.ID)
-
+        try:
+            dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            dsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            msocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            dsocket.bind((self.address, STREAM_SERVER_PORT))
             msocket.connect((server_ip, MESSAGE_SERVER_PORT))
-            self.out("MSOCKET connected to {}:{}".format(server_ip, MESSAGE_SERVER_PORT))
+            dsocket.listen(1)
+        except:
+            raise
+        finally:
+            self.shutdown()
 
-            self.messenger = Messaging(msocket, tag=msgtag)
-            self.send_message = lambda *msgs: self.messenger.send(*[msgtag + msg for msg in msgs])
-            self.get_message = lambda n=1, timeout=0: self.messenger.recv(n, timeout)
+        self.messenger = Messaging(msocket, tag=b"{}-{}:".format(self.entity_type, self.ID))
 
-        def send_an_introduction_to_the_server():
-            introduction = "HELLO;" + str(frshape)[1:-1].replace(", ", "x")
-            self.send_message(introduction.encode())
+        introduction = "HELLO;" + str(self.streamer)[1:-1].replace(", ", "x")
+        self.messenger.send(introduction.encode())
 
-        def set_up_AV_streaming_channel():
-            self.dsocket.listen(1)
-            self.dsocket, (ip, port) = self.dsocket.accept()
-            if ip != server_ip:
-                warnings.warn("Received data connection from an unknown IP: {}".format(addr))
+        dsocket, (ip, port) = dsocket.accept()
+        self.streamer = TCPStreamer(self, dsocket)
 
-        frshape = get_my_video_frame_shape()
-        set_up_messenger_channel()
-        self.send_message = self.messenger.send
-        send_an_introduction_to_the_server()
-        set_up_AV_streaming_channel()
+        if ip != server_ip:
+            warnings.warn("Received data connection from an unknown IP: {}:{}"
+                          .format(ip, port))
 
     def launch_stream(self):
         """
@@ -123,24 +147,6 @@ class CarBase(object):
         """Tears down the streaming thread"""
         self.streaming = False
         time.sleep(3)  # Wait for loop termination
-
-    def see(self):
-        """
-        Obtain frames from the capture device via OpenCV.
-        Send the frames to the UDP client (the main server)
-        """
-        pushed = 0
-        while self.streaming:
-            success, frame = self.eye.read()
-            ##########################################
-            # Data preprocessing has to be done here #
-            serial = frame.astype(DTYPE).tostring()  #
-            ##########################################
-            for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
-                self.dsocket.sendto(slc, (self.server_ip, STREAM_SERVER_PORT))
-            pushed += 1
-            print("\rPushed {:>3} frames".format(pushed), end="")
-        self.out("Stream terminated!")
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
@@ -201,24 +207,6 @@ class CarTCP(CarBase):
         if addr != server_ip:
             warnings.warn("Received data connection from an unknown IP:", addr)
 
-    def see(self):
-        """
-        Obtain frames from the capture device via OpenCV.
-        Send the frames to the UDP client (the main server)
-        """
-        pushed = 0
-        while self.streaming:
-            success, frame = self.eye.read()
-            ##########################################
-            # Data preprocessing has to be done here #
-            serial = frame.astype(DTYPE).tostring()  #
-            ##########################################
-            for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
-                self.dsocket.sendto(slc, (self.server_ip, STREAM_SERVER_PORT))
-            pushed += 1
-            print("\rPushed {:>3} frames".format(pushed), end="")
-        self.out("Stream terminated!")
-
 
 class CarUDP(CarBase):
 
@@ -272,8 +260,8 @@ def main():
     try:
         lightning_mcqueen.connect(serverIP)
         lightning_mcqueen.mainloop()
-    except:
-        raise
+    except Exception as E:
+        print("Exception occured:", E.message)
     finally:
         lightning_mcqueen.shutdown()
 

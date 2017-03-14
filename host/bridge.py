@@ -51,14 +51,17 @@ class Console(thr.Thread):
         thr.Thread.__init__(self, name="Console")
         self.master = master
         self.commands = {
-            "help": lambda: print("Available commands:", ", ".join(sorted(self.commands))),
-            "cars": lambda: print("Cars online:", ", ".join(sorted(self.master.cars))),
+            "help": lambda: print("Available commands:", ", "
+                                  .join(sorted(self.commands))),
+            "cars": lambda: print("Cars online:", ", "
+                                  .join(sorted(self.master.cars))),
             "kill": self.master.kill_car,
             "watch": self.master.watch_car,
             "shutdown": self.master.shutdown,
             "status": self.master.report,
-            "start": self.master.start_listening,
-            "message": lambda ID, *msg: Messaging.send(self.master.cars[ID].msocket, " ".join(msg))
+            "start": self.master.listener.start,
+            "message": lambda ID, *msg: self.master.cars[ID].send(
+                b" ".join((w.encode() for w in msg)))
         }
 
     @property
@@ -75,6 +78,13 @@ class Console(thr.Thread):
                 continue
             elif cmd == "shutdown":
                 break
+            else:
+                try:
+                    self.commands[cmd](*args)
+                except Exception as E:
+                    print("{} caused: {}".format(cmd, E.message))
+                    self.master.shutdown()
+                    break
         print("SERVER: Console shut down correctly")
 
     def read_cmd(self):
@@ -165,7 +175,6 @@ class FleetHandler(object):
         self.cars = {}
         self.watchers = {}
         self.since = datetime.now()
-        self.nextport = STREAM_SERVER_PORT
 
         # Socket for receiving message connections
         self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -173,8 +182,9 @@ class FleetHandler(object):
         self.msocket.bind((ip, MESSAGE_SERVER_PORT))
         print("SERVER: msocket bound to", ip)
 
-        self.console = Console(self)
         self.listener = Listener(self)
+        self.console = Console(self)
+
         self.running = False
         self.status = "Idle"
 
@@ -277,7 +287,9 @@ def main():
 
     server = FleetHandler(serverIP)
     try:
-        server.console()
+        server.console.run()
+    except Exception as E:
+        print("OUTSIDE: exception occured:", E.message)
     finally:
         server.shutdown()
 
