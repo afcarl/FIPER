@@ -1,6 +1,9 @@
 import wx
 import sys
-import traceback
+import time
+import traceback 
+
+
 
 class MainFrame(wx.Frame):
 
@@ -106,12 +109,12 @@ class MainFrame(wx.Frame):
 		dc.DrawText('Hello transparent window',width*0.7, height*0.1)
 		"""
 		
-		w, h = 1000, 100
+		w, h = 100, 30
 		bmp = wx.EmptyBitmap(w, h)
 		dc = wx.MemoryDC()
 		dc.SelectObject(bmp)
 		dc.Clear()
-		text = "whatever"
+		text = " O P T I O N S "
 		tw, th = dc.GetTextExtent(text)
 		dc.DrawText(text, (w-tw)/2,  (h-th)/2)
 		dc.SelectObject(wx.NullBitmap)
@@ -186,9 +189,10 @@ class NewFrame(wx.Frame):
 		tp = 0
 		while(1):
 			self.SetTransparent(tp)
-			wx.Sleep(.001)
+			time.sleep(.01)
 			tp += 10 
 			self.SetBackgroundColour((30,30,30))
+			# self.SetBackgroundColour('#00aeef')
 			# Keep Cursor Shape for new Frame 
 			self.set_cursor()
 			self.Show()
