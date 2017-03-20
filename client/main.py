@@ -1,8 +1,7 @@
 import wx
+import os
 import sys
 import time
-import traceback 
-
 
 
 class MainFrame(wx.Frame):
@@ -27,8 +26,14 @@ class MainFrame(wx.Frame):
 		# Set Custom Cursor Image 
 		self.set_cursor()
 		
-		self.version = wx.TextCtrl(self, value='Version: Pre-Alpha', size=(140,30), pos=(self.width*0.01,self.height*0.96))
-		self.version.SetTransparent(120)
+		self.version = wx.TextCtrl(	self, value='Version: Pre-Alpha', 
+									size=(140,30), pos=(self.width*0.01,self.height*0.96))
+		self.version.SetTransparent(True)
+		
+		self.version = wx.TextCtrl(	self, value='Contact: gal.mateo@gmail.com', 
+									size=(230,30), pos=(self.width*0.87,self.height*0.96))
+		self.version.SetTransparent(True)
+		
 		# Show Application ( Grab Focus )
 		self.Show()
 		
@@ -103,35 +108,21 @@ class MainFrame(wx.Frame):
 		y_pos = (self.height * 0.025)
 		width = (self.width * 0.95)
 		height = (self.height * 0.95)
-		self.connect_window = NewFrame('connect', width, height, x_pos, y_pos)
+		self.connect_window = NewFrame(' C O N N E C T ', width, height, x_pos, y_pos)
+
+		connect_list = wx.ListCtrl(	self.connect_window, size=(width*0.5,height*0.5), 
+							pos=(width*0.05,height*0.4),style=wx.TE_MULTILINE )
+		connect_list.SetBackgroundColour((0,0,0))
+		
 		"""
 		dc = wx.ScreenDC() 
 		dc.DrawText('Hello transparent window',width*0.7, height*0.1)
 		"""
 		
-		w, h = 100, 30
-		bmp = wx.EmptyBitmap(w, h)
-		dc = wx.MemoryDC()
-		dc.SelectObject(bmp)
-		dc.Clear()
-		text = " O P T I O N S "
-		tw, th = dc.GetTextExtent(text)
-		dc.DrawText(text, (w-tw)/2,  (h-th)/2)
-		dc.SelectObject(wx.NullBitmap)
-		wx.StaticBitmap(self.connect_window, -1, bmp)
-
-		self.ok_skin = wx.Bitmap('image\\menu\\buttons\\btn3.png')
-		self.ok_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn3_hover.png')
-		self.ok_skin_click = wx.Bitmap('image\\menu\\buttons\\btn3_click.png')
-		
-		self.ok_button = wx.BitmapButton(			self.connect_window, -1, self.ok_skin, 
-													pos=(width*0.8,height*0.8), 
-													size=(260,130)					)
-		self.ok_button.SetBitmapHover(self.ok_skin_hover)
-		self.ok_button.SetBitmapSelected(self.ok_skin_click)
-		
-		connect_list = wx.ListCtrl(self.connect_window, size=(width*0.5,height*0.5), pos=(width*0.05,height*0.4),style=wx.TE_MULTILINE )
-		connect_list.SetBackgroundColour((0,0,0))
+		"""
+		list_file = 'connection.dat'
+		with open(list_file) as file:
+		"""
 		
 		cell_width = 150
 		connect_list.InsertColumn(0, 'CAR NAME', width=cell_width)
@@ -140,7 +131,6 @@ class MainFrame(wx.Frame):
 		connect_list.InsertColumn(3, 'PING', width=cell_width)
 		connect_list.SetTextColour('white')
 		
-
 		row_index = 0
 		connect_list.InsertStringItem(row_index, 'OpenRC Truggy')
 		connect_list.SetStringItem(row_index, 1, '192.168.1.11')
@@ -164,14 +154,14 @@ class MainFrame(wx.Frame):
 		y_pos = (self.height * 0.025)
 		width = (self.width * 0.95)
 		height = (self.height * 0.95)
-		self.options_window = NewFrame('options', width, height, x_pos, y_pos)
+		self.options_window = NewFrame(' O P T I O N S ', width, height, x_pos, y_pos)
 		
 	def quit_window(self, event):
-		x_pos = (self.width * 0.35)
-		y_pos = (self.height * 0.35)
-		width = (self.width * 0.3)
-		height = (self.height * 0.3)
-		self.quit_window = NewFrame('quit', width, height, x_pos, y_pos)
+		x_pos = (self.width * 0.2)
+		y_pos = (self.height * 0.2)
+		width = (self.width * 0.5)
+		height = (self.height * 0.5)
+		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos)
 
 	def key_stroke_callback(self, event):
 		self.quit_window(wx.EVT_BUTTON)
@@ -199,10 +189,40 @@ class NewFrame(wx.Frame):
 			if ( tp == 200 ): break # Max transparency
 			
 		self.Bind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)	
+
+		w, h = 150, 30
+		bmp = wx.EmptyBitmap(w, h)
+		dc = wx.MemoryDC()
+		dc.SelectObject(bmp)
+		dc.Clear()
+		text = title
+		tw, th = dc.GetTextExtent(text)
+		dc.DrawText(text, (w-tw)/2,  (h-th)/2)
+		dc.SelectObject(wx.NullBitmap)
+		wx.StaticBitmap(self, -1, bmp)
+
+		self.ok_skin = wx.Bitmap('image\\menu\\buttons\\btn3.png')
+		self.ok_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn3_hover.png')
+		self.ok_skin_click = wx.Bitmap('image\\menu\\buttons\\btn3_click.png')
+		self.ok_button = wx.BitmapButton(	self, -1, self.ok_skin, 
+											pos=(width-350,height-200), 
+											size=(260,130)					)
+		self.ok_button.SetBitmapHover(self.ok_skin_hover)
+		self.ok_button.SetBitmapSelected(self.ok_skin_click)
 		
+		
+		self.cancel_skin = wx.Bitmap('image\\menu\\buttons\\btn4.png')
+		self.cancel_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn4_hover.png')
+		self.cancel_skin_click = wx.Bitmap('image\\menu\\buttons\\btn4_click.png')
+		self.cancel_button = wx.BitmapButton(	self, -1, self.cancel_skin, 
+												pos=(width-700,height-200), 
+												size=(260,125)					)
+		self.cancel_button.SetBitmapHover(self.cancel_skin_hover)
+		self.cancel_button.SetBitmapSelected(self.cancel_skin_click)
+
 	def set_cursor(self):
 		cursor_path = ('image\\menu\\cursor.ico')
-		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
+		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 0, 0)
 		self.SetCursor(cursor)
 
 	def key_stroke_callback(self, event):
@@ -226,4 +246,3 @@ class Main(wx.App):
 if __name__ == "__main__":
     app = Main()
     app.MainLoop()
-
