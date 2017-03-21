@@ -25,15 +25,6 @@ class MainFrame(wx.Frame):
 			self.place_buttons() 
 		# Set Custom Cursor Image 
 		self.set_cursor()
-		
-		self.version = wx.TextCtrl(	self, value='Version: Pre-Alpha', 
-									size=(140,30), pos=(self.width*0.01,self.height*0.96))
-		self.version.SetTransparent(True)
-		
-		self.version = wx.TextCtrl(	self, value='Contact: gal.mateo@gmail.com', 
-									size=(230,30), pos=(self.width*0.87,self.height*0.96))
-		self.version.SetTransparent(True)
-		
 		# Show Application ( Grab Focus )
 		self.Show()
 		
@@ -54,6 +45,12 @@ class MainFrame(wx.Frame):
 		dc.DrawBitmap(self.background_bitmap, 0, 0, True)
 		self.fiper_logo = self.scale_bitmap(fiper_logo, self.width*0.4, self.height*0.3)
 		dc.DrawBitmap(self.fiper_logo, 40, -10, False)
+
+		font = wx.Font(14, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False)
+		dc.SetFont(font)
+		dc.SetTextForeground('white')
+		dc.DrawText('Version: Pre-Alpha', self.width*0.005, self.height*0.97)
+		dc.DrawText('Contact: GAL.MATEO @ GMAIL.COM', self.width*0.77, self.height*0.97)
 		
 	def scale_bitmap(self, bitmap, width, height):
 		# This method scales a bitmap for a desired size
@@ -62,17 +59,38 @@ class MainFrame(wx.Frame):
 		result = wx.BitmapFromImage(image)
 		return result	
 		
-	def set_cursor(self):
+ 	def set_cursor(self):
 		# Custom cursor for the application
 		cursor_path = ('image\\menu\\cursor.ico')
 		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
 		self.SetCursor(cursor)	
 		
-	def place_buttons(self):
-		# Place buttons on the background and define the behaviour of them 
+	def define_button_textures(self):
 		self.connect_skin = wx.Bitmap('image\\menu\\buttons\\btn0.png')
 		self.connect_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn0_hover.png')
 		self.connect_skin_click = wx.Bitmap('image\\menu\\buttons\\btn0_click.png')
+		
+		self.options_skin = wx.Bitmap('image\\menu\\buttons\\btn1.png')
+		self.options_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn1_hover.png')
+		self.options_skin_click = wx.Bitmap('image\\menu\\buttons\\btn1_click.png')
+		
+		self.quit_skin = wx.Bitmap('image\\menu\\buttons\\btn2.png')
+		self.quit_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn2_hover.png')
+		self.quit_skin_click = wx.Bitmap('image\\menu\\buttons\\btn2_click.png')
+		
+		self.ok_skin = wx.Bitmap('image\\menu\\buttons\\btn3.png')
+		self.ok_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn3_hover.png')
+		self.ok_skin_click = wx.Bitmap('image\\menu\\buttons\\btn3_click.png')
+		
+		self.cancel_skin = wx.Bitmap('image\\menu\\buttons\\btn4.png')
+		self.cancel_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn4_hover.png')
+		self.cancel_skin_click = wx.Bitmap('image\\menu\\buttons\\btn4_click.png')
+		
+	def place_buttons(self):
+		self.define_button_textures()
+	
+		# Place buttons on the background and define the behaviour of them 
+
 		self.connect_button = wx.BitmapButton(self, -1, self.connect_skin, 
 													pos=(int(self.width*0.64),
 													int(self.height*0.3)), 
@@ -81,9 +99,6 @@ class MainFrame(wx.Frame):
 		self.connect_button.SetBitmapSelected(self.connect_skin_click)
 		self.connect_button.Bind(wx.EVT_BUTTON, self.connect_window)
 		#
-		self.options_skin = wx.Bitmap('image\\menu\\buttons\\btn1.png')
-		self.options_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn1_hover.png')
-		self.options_skin_click = wx.Bitmap('image\\menu\\buttons\\btn1_click.png')
 		self.options_button = wx.BitmapButton(self, -1, self.options_skin, 
 													pos=(int(self.width*0.64),
 													int(self.height*0.5)), 
@@ -92,9 +107,6 @@ class MainFrame(wx.Frame):
 		self.options_button.SetBitmapSelected(self.options_skin_click)
 		self.options_button.Bind(wx.EVT_BUTTON, self.options_window)
 		#
-		self.quit_skin = wx.Bitmap('image\\menu\\buttons\\btn2.png')
-		self.quit_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn2_hover.png')
-		self.quit_skin_click = wx.Bitmap('image\\menu\\buttons\\btn2_click.png')
 		self.quit_button = wx.BitmapButton(self, -1, self.quit_skin, 
 													pos=(int(self.width*0.64),
 													int(self.height*0.7)), 
@@ -102,6 +114,24 @@ class MainFrame(wx.Frame):
 		self.quit_button.SetBitmapHover(self.quit_skin_hover)
 		self.quit_button.SetBitmapSelected(self.quit_skin_click)
 		self.quit_button.Bind(wx.EVT_BUTTON, self.quit_window)
+	
+	def initiate_connection(self, event):
+		print 'connected!'
+		
+		# FADE OUT 
+		tp = 200
+		while(1):
+			self.connect_window.SetTransparent(tp)
+			time.sleep(.01)
+			tp -= 10 
+			self.connect_window.SetBackgroundColour((30,30,30))
+			# self.SetBackgroundColour('#00aeef')
+			# Keep Cursor Shape for new Frame 
+			self.set_cursor()
+			self.connect_window.Show()
+			if ( tp == 0 ): break # Max transparency
+		
+		self.connect_window.Close()
 		
 	def connect_window(self, event):
 		x_pos = (self.width * 0.025)
@@ -149,6 +179,21 @@ class MainFrame(wx.Frame):
 		connect_list.SetStringItem(row_index, 2, 'NO')
 		connect_list.SetStringItem(row_index, 3, '30')
 
+		ok_button_x = width * 0.8
+		ok_button_y = height * 0.82
+		ok_button = wx.BitmapButton(	self.connect_window, -1, self.ok_skin, 
+											pos=(ok_button_x,ok_button_y), 
+											size=(260,130)					)
+		ok_button.SetBitmapHover(self.ok_skin_hover)
+		ok_button.SetBitmapSelected(self.ok_skin_click)
+		ok_button.Bind(wx.EVT_BUTTON, self.initiate_connection)
+		
+		cancel_button = wx.BitmapButton(	self.connect_window, -1, self.cancel_skin, 
+												pos=(ok_button_x-300,ok_button_y), 
+												size=(260,130)						)
+		cancel_button.SetBitmapHover(self.cancel_skin_hover)
+		cancel_button.SetBitmapSelected(self.cancel_skin_click)
+		
 	def options_window(self, event):
 		x_pos = (self.width * 0.025)
 		y_pos = (self.height * 0.025)
@@ -156,13 +201,29 @@ class MainFrame(wx.Frame):
 		height = (self.height * 0.95)
 		self.options_window = NewFrame(' O P T I O N S ', width, height, x_pos, y_pos)
 		
+		ok_button_x = width * 0.8
+		ok_button_y = height * 0.82
+		ok_button = wx.BitmapButton(	self.options_window, -1, self.ok_skin, 
+											pos=(ok_button_x,ok_button_y), 
+											size=(260,130)					)
+		ok_button.SetBitmapHover(self.ok_skin_hover)
+		ok_button.SetBitmapSelected(self.ok_skin_click)
+		
+		
+		cancel_button = wx.BitmapButton(	self.options_window, -1, self.cancel_skin, 
+												pos=(ok_button_x-300,ok_button_y), 
+												size=(260,130)						)
+		cancel_button.SetBitmapHover(self.cancel_skin_hover)
+		cancel_button.SetBitmapSelected(self.cancel_skin_click)
+		
 	def quit_window(self, event):
 		x_pos = (self.width * 0.2)
 		y_pos = (self.height * 0.2)
 		width = (self.width * 0.5)
 		height = (self.height * 0.5)
 		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos)
-
+		self.quit_window.SetFocus()
+		
 	def key_stroke_callback(self, event):
 		self.quit_window(wx.EVT_BUTTON)
 			
@@ -190,35 +251,18 @@ class NewFrame(wx.Frame):
 			
 		self.Bind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)	
 
-		w, h = 150, 30
+		w, h = width*0.3, 30
 		bmp = wx.EmptyBitmap(w, h)
 		dc = wx.MemoryDC()
 		dc.SelectObject(bmp)
 		dc.Clear()
 		text = title
 		tw, th = dc.GetTextExtent(text)
+		font = wx.Font(14, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False)
+		dc.SetFont(font)
 		dc.DrawText(text, (w-tw)/2,  (h-th)/2)
 		dc.SelectObject(wx.NullBitmap)
 		wx.StaticBitmap(self, -1, bmp)
-
-		self.ok_skin = wx.Bitmap('image\\menu\\buttons\\btn3.png')
-		self.ok_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn3_hover.png')
-		self.ok_skin_click = wx.Bitmap('image\\menu\\buttons\\btn3_click.png')
-		self.ok_button = wx.BitmapButton(	self, -1, self.ok_skin, 
-											pos=(width-350,height-200), 
-											size=(260,130)					)
-		self.ok_button.SetBitmapHover(self.ok_skin_hover)
-		self.ok_button.SetBitmapSelected(self.ok_skin_click)
-		
-		
-		self.cancel_skin = wx.Bitmap('image\\menu\\buttons\\btn4.png')
-		self.cancel_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn4_hover.png')
-		self.cancel_skin_click = wx.Bitmap('image\\menu\\buttons\\btn4_click.png')
-		self.cancel_button = wx.BitmapButton(	self, -1, self.cancel_skin, 
-												pos=(width-700,height-200), 
-												size=(260,125)					)
-		self.cancel_button.SetBitmapHover(self.cancel_skin_hover)
-		self.cancel_button.SetBitmapSelected(self.cancel_skin_click)
 
 	def set_cursor(self):
 		cursor_path = ('image\\menu\\cursor.ico')
@@ -227,7 +271,20 @@ class NewFrame(wx.Frame):
 
 	def key_stroke_callback(self, event):
 		if (event.GetKeyCode() == wx.WXK_ESCAPE):
+			# FADE OUT 
+			tp = 200
+			while(1):
+				self.SetTransparent(tp)
+				time.sleep(.01)
+				tp -= 10 
+				self.SetBackgroundColour((30,30,30))
+				# self.SetBackgroundColour('#00aeef')
+				# Keep Cursor Shape for new Frame 
+				self.set_cursor()
+				self.Show()
+				if ( tp == 0 ): break # Max transparency
 			self.Close()
+			
 		if (event.GetKeyCode() == wx.WXK_RETURN):
 			sys.exit(0)
 		event.Skip() 
