@@ -2,7 +2,7 @@ import wx
 import os
 import sys
 import time
-
+from wx import media
 
 class MainFrame(wx.Frame):
 
@@ -19,6 +19,7 @@ class MainFrame(wx.Frame):
 		# Erase background from designated areas by DC ( for the buttons )
 		self.Bind(wx.EVT_ERASE_BACKGROUND, self.set_background)
 		#
+		self.music()
 		# self.Bind('<Escape>', self.quit_window(wx.EVT_BUTTON) )
 		# Place buttons on background
 		if ( place_buttons == True ):
@@ -27,6 +28,7 @@ class MainFrame(wx.Frame):
 		self.set_cursor()
 		# Show Application ( Grab Focus )
 		self.Show()
+
 		
 	def set_background(self, event): 
 		# Setting up Background with Transparency and ClippingRegion
@@ -119,7 +121,7 @@ class MainFrame(wx.Frame):
 		print 'connected!'
 		
 		# FADE OUT 
-		tp = 200
+		tp = 200 
 		while(1):
 			self.connect_window.SetTransparent(tp)
 			time.sleep(.01)
@@ -204,29 +206,67 @@ class MainFrame(wx.Frame):
 		ok_button_x = width * 0.8
 		ok_button_y = height * 0.82
 		ok_button = wx.BitmapButton(	self.options_window, -1, self.ok_skin, 
-											pos=(ok_button_x,ok_button_y), 
-											size=(260,130)					)
+										pos=(ok_button_x,ok_button_y), 
+										size=(260,130)					)
 		ok_button.SetBitmapHover(self.ok_skin_hover)
 		ok_button.SetBitmapSelected(self.ok_skin_click)
 		
 		
 		cancel_button = wx.BitmapButton(	self.options_window, -1, self.cancel_skin, 
-												pos=(ok_button_x-300,ok_button_y), 
-												size=(260,130)						)
+											pos=(ok_button_x-300,ok_button_y), 
+											size=(260,130)						)
 		cancel_button.SetBitmapHover(self.cancel_skin_hover)
 		cancel_button.SetBitmapSelected(self.cancel_skin_click)
 		
 	def quit_window(self, event):
-		x_pos = (self.width * 0.2)
-		y_pos = (self.height * 0.2)
+		x_pos = (self.width * 0.1)
+		y_pos = (self.height * 0.3)
 		width = (self.width * 0.5)
 		height = (self.height * 0.5)
 		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos)
 		self.quit_window.SetFocus()
 		
+		ok_button_x = width * 0.63
+		ok_button_y = height * 0.6
+		ok_button = wx.BitmapButton(	self.quit_window, -1, self.ok_skin, 
+										pos=(ok_button_x,ok_button_y), 
+										size=(260,130)					)
+		ok_button.SetBitmapHover(self.ok_skin_hover)
+		ok_button.SetBitmapSelected(self.ok_skin_click)
+		# ok_button.Bind(wx.EVT_BUTTON, self.devastation(0) )
+		
+		cancel_button = wx.BitmapButton(	self.quit_window, -1, self.cancel_skin, 
+											pos=(ok_button_x-500,ok_button_y), 
+											size=(260,130)						)
+		cancel_button.SetBitmapHover(self.cancel_skin_hover)
+		cancel_button.SetBitmapSelected(self.cancel_skin_click)
+		
+		
 	def key_stroke_callback(self, event):
 		self.quit_window(wx.EVT_BUTTON)
 			
+	def devastation(self, return_value):
+		sys.exit(return_value)
+			
+	# def music(self):
+		# self.music = wx.Sound('audio\\music\\carpenter_brut.wav')
+		# if self.music.IsOk():
+			# self.music.Play(wx.SOUND_ASYNC)
+		# else:
+			# print "Missing or invalid sound file", "Error"
+			
+	def music(self):
+		music_file = 'audio\\music\\carpenter_brut.wav'
+		self.mediaPlayer = wx.media.MediaCtrl(self,1)
+		self.mediaPlayer.Load(music_file)
+		self.mediaPlayer.Play()
+		
+		"""
+		
+		https://www.blog.pythonlibrary.org/2010/04/20/wxpython-creating-a-simple-mp3-player/
+		
+		"""
+
 class NewFrame(wx.Frame):
 	
 	def __init__(self, title, width, height, x, y):
