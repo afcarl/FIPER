@@ -257,10 +257,10 @@ class MainFrame(wx.Frame):
 		font = wx.Font(32, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False)
 		dc.SetFont(font)
 		dc.SetTextForeground('white')
-		dc.DrawText('Oh, really?!', width*0.3, height*0.3)
+		dc.DrawText('Oh, really?!', width*0.34, height*0.3)
 	
 	def quit_lost_focus(self, event):
-		wx.Frame.SetFocus(self.quit_window)
+		self.quit_window.SetFocus()
 		
 	def options_lost_focus(self, event):
 		wx.Frame.SetFocus(self.options_window)
