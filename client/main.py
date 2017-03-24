@@ -142,7 +142,9 @@ class MainFrame(wx.Frame):
 		width = (self.width * 0.95)
 		height = (self.height * 0.95)
 		self.connect_window = NewFrame(' C O N N E C T ', width, height, x_pos, y_pos)
-
+		
+		self.connect_window.Bind( wx.EVT_KILL_FOCUS, self.connect_lost_focus )
+		
 		connect_list = wx.ListCtrl(	self.connect_window, size=(width*0.5,height*0.5), 
 							pos=(width*0.05,height*0.4),style=wx.TE_MULTILINE )
 		connect_list.SetBackgroundColour((0,0,0))
@@ -204,6 +206,8 @@ class MainFrame(wx.Frame):
 		height = (self.height * 0.95)
 		self.options_window = NewFrame(' O P T I O N S ', width, height, x_pos, y_pos)
 		
+		self.options_window.Bind( wx.EVT_KILL_FOCUS, self.options_lost_focus )
+		
 		ok_button_x = width * 0.8
 		ok_button_y = height * 0.82
 		ok_button = wx.BitmapButton(	self.options_window, -1, self.ok_skin, 
@@ -226,6 +230,7 @@ class MainFrame(wx.Frame):
 		height = (self.height * 0.5)
 		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos)
 		
+		self.quit_window.Bind( wx.EVT_KILL_FOCUS, self.quit_lost_focus )
 		
 		ok_button_x = width * 0.63
 		ok_button_y = height * 0.6
@@ -253,7 +258,16 @@ class MainFrame(wx.Frame):
 		dc.SetFont(font)
 		dc.SetTextForeground('white')
 		dc.DrawText('Oh, really?!', width*0.3, height*0.3)
+	
+	def quit_lost_focus(self, event):
+		wx.Frame.SetFocus(self.quit_window)
 		
+	def options_lost_focus(self, event):
+		wx.Frame.SetFocus(self.options_window)
+		
+	def connect_lost_focus(self, event):
+		wx.Frame.SetFocus(self.connect_window)
+			
 	def key_stroke_callback(self, event):
 		self.quit_window(wx.EVT_BUTTON)
 			
