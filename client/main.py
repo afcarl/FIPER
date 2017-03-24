@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from wx import media
+from threading import Thread
 
 class MainFrame(wx.Frame):
 
@@ -19,7 +20,7 @@ class MainFrame(wx.Frame):
 		# Erase background from designated areas by DC ( for the buttons )
 		self.Bind(wx.EVT_ERASE_BACKGROUND, self.set_background)
 		#
-		self.music()
+		# self.music()
 		# self.Bind('<Escape>', self.quit_window(wx.EVT_BUTTON) )
 		# Place buttons on background
 		if ( place_buttons == True ):
@@ -224,7 +225,7 @@ class MainFrame(wx.Frame):
 		width = (self.width * 0.5)
 		height = (self.height * 0.5)
 		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos)
-		self.quit_window.SetFocus()
+		
 		
 		ok_button_x = width * 0.63
 		ok_button_y = height * 0.6
@@ -241,6 +242,17 @@ class MainFrame(wx.Frame):
 		cancel_button.SetBitmapHover(self.cancel_skin_hover)
 		cancel_button.SetBitmapSelected(self.cancel_skin_click)
 		
+		
+		self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
+		dc = wx.ClientDC(self.quit_window)
+		rect = self.GetUpdateRegion().GetBox()
+
+		dc.Clear()
+
+		font = wx.Font(32, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False)
+		dc.SetFont(font)
+		dc.SetTextForeground('white')
+		dc.DrawText('Oh, really?!', width*0.3, height*0.3)
 		
 	def key_stroke_callback(self, event):
 		self.quit_window(wx.EVT_BUTTON)
@@ -268,14 +280,23 @@ class MainFrame(wx.Frame):
 		"""
 
 class NewFrame(wx.Frame):
-	
+	instance_counter = 0
 	def __init__(self, title, width, height, x, y):
+		
+		# Counting the amound of instances to avoid creating infinite number of new frames 
+		self.__class__.instance_counter += 1 
+		if ( self.__class__.instance_counter > 1 ):
+			self.Destroy()
+			
+		# Custom frame-look
 		style = ( 	wx.CLIP_CHILDREN | wx.STAY_ON_TOP | 
 					wx.FRAME_NO_TASKBAR | wx.NO_BORDER | wx.FRAME_SHAPED  )
 		wx.Frame.__init__(self, None, title=title, style = style)
+		
 		# Set Position and Size of new frame
 		self.SetPosition((x,y))
 		self.SetSize((width,height))
+		
 		# Make new frame transparent, black, and fade in
 		tp = 0
 		while(1):
@@ -323,6 +344,7 @@ class NewFrame(wx.Frame):
 				self.set_cursor()
 				self.Show()
 				if ( tp == 0 ): break # Max transparency
+			self.__class__.instance_counter = 0 
 			self.Close()
 			
 		if (event.GetKeyCode() == wx.WXK_RETURN):
