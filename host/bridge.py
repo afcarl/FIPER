@@ -14,14 +14,13 @@ from FIPER.generic import *
 class StreamDisplayer(thr.Thread):
 
     """
-    Handles the cv2 displays.
-    Untested yet! (Only useful for debug anyways)
+    Handles the cv2 displays for the car interfaces.
     """
 
     instances = 0
 
     def __init__(self, carint):
-        self.interface = carint
+        self.interface = carint  # type: CarInterface
         thr.Thread.__init__(self, name="Streamer-of-{}".format(carint.ID))
         self.running = True
         self.online = True
@@ -33,11 +32,11 @@ class StreamDisplayer(thr.Thread):
         for i, pic in enumerate(stream, start=1):
             self.interface.out("\rRecieved {:>4} frames of shape {}"
                                .format(i, pic.shape), end="")
-            cv2.imshow("{} Stream".format(self.interface.car_ID), pic)
+            cv2.imshow("{} Stream".format(self.interface.ID), pic)
             cv2.waitKey(1)
             if not self.running:
                 break
-        cv2.destroyWindow("{} Stream".format(self.interface.car_ID))
+        cv2.destroyWindow("{} Stream".format(self.interface.ID))
         self.online = False
 
     def __del__(self):
@@ -48,7 +47,7 @@ class Console(thr.Thread):
 
     """
     Singleton class!
-    Abstraction of the server console.
+    Abstraction of the server's console.
     """
 
     instances = 0
@@ -114,8 +113,8 @@ class Listener(thr.Thread):
 
     """
     Singleton class!
-    Listens for car connections.
-    Creates CarInterface objects.
+    Listens for incoming car connections for the server.
+    Coordinates the creation of CarInterface objects.
     """
 
     instances = 0
@@ -123,7 +122,7 @@ class Listener(thr.Thread):
     def __init__(self, master):
         if Listener.instances > 0:
             raise RuntimeError("The Singleton [Listener] is already instantiated!")
-        thr.Thread.__init__(self, name="Sever-Listener".format(Listener.instances))
+        thr.Thread.__init__(self, name="Server-Listener".format(Listener.instances))
         self.master = master  # type: FleetHandler
 
         Listener.instances += 1
@@ -140,7 +139,7 @@ class Listener(thr.Thread):
     def _set_server_flags_to_running_mode(self):
         self.master.running = True
         self.master.status = "Listening"
-        print("\nSERVER {}: Awaiting connections...\n".format(self.name))
+        print("\nLISTENER: Server awaiting connections...\n".format(self.name))
         self.master.msocket.listen(1)
 
     def _main_loop_listening_for_car_connections(self):
@@ -150,7 +149,8 @@ class Listener(thr.Thread):
             except socket.timeout:
                 time.sleep(1)
             else:
-                print("\nSERVER: Received connection from", ":".join((ip, str(port))), "\n")
+                print("\nSERVER: Received connection from {}:{}\n"
+                      .format(ip, port))
                 self._coordinate_handshake_with_car(conn, ip)
 
     def _tear_down_connection_on_exit(self):
@@ -186,11 +186,10 @@ class Listener(thr.Thread):
             """
 
             s = s.split(":HELLO;")
-            s = s[0].split(":")
             etype, remoteID = s[0].split("-")
 
             try:
-                shp = [int(s) for s in s[1].split("x")]
+                shp = [int(sp) for sp in s[1].split("x")]
             except ValueError:
                 print("LISTENER: Received wrong frameshape definition from {}!\nGot {}"
                       .format(remoteID, introduction[1]))
@@ -198,11 +197,13 @@ class Listener(thr.Thread):
             return etype, remoteID, shp
 
         def respond_to_car(msngr):
-            msngr.send(b"HELLO-PORT:{}".format(self.master.nextport))
+            msngr.send(b"HELLO")
 
         messenger = Messaging(msock)
-        introduction = messenger.recv(timeout=3)
-        print("LISTENER: got introduction:", introduction)
+        introduction = None
+        while introduction is None:
+            introduction = messenger.recv(timeout=1)
+            print("LISTENER: got introduction:", introduction)
         if not valid_introduction(introduction):
             return
         result = parse_introductory_string(introduction)
@@ -213,7 +214,11 @@ class Listener(thr.Thread):
                     valid_frame_shape(frameshape))):
             return
         respond_to_car(messenger)
-        self.master.cars[ID] = CarInterface(ID, addr, frameshape, messenger, addr)
+        self.master.dsocket.listen(1)
+        conn, daddr = self.master.dsocket.accept()
+        self.master.cars[ID] = CarInterface(
+            ID=ID, conn=conn, srv_ip=self.master.ip, frameshape=frameshape,
+            messenger=messenger)
 
 
 # noinspection PyUnusedLocal
@@ -231,24 +236,20 @@ class FleetHandler(object):
         self.watchers = {}
         self.since = datetime.now()
 
-        self._nextport = STREAM_SERVER_START_PORT
-
         # Socket for receiving message connections
         self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.msocket.settimeout(3)
         self.msocket.bind((ip, MESSAGE_SERVER_PORT))
-        print("SERVER: msocket bound to", ip)
+        self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.dsocket.bind((ip, STREAM_SERVER_PORT))
+        print("SERVER: sockets are bound to {}:{}/{}"
+              .format(ip, MESSAGE_SERVER_PORT, STREAM_SERVER_PORT))
 
         self.listener = Listener(self)
         self.console = Console(self)
 
         self.running = False
         self.status = "Idle"
-
-    @property
-    def nextport(self):
-        self._nextport += 1
-        return self._nextport
 
     def kill_car(self, ID, *args):
         """
@@ -338,6 +339,20 @@ def readargs():
     return [raw_input(pleading + q + " > ") for q in question][0]
 
 
+def debugmain():
+    """Does the argparse and launches a server"""
+    server = FleetHandler("127.0.0.1")
+    try:
+        server.listener.start()
+        server.console.run()
+    except Exception as E:
+        print("OUTSIDE: exception occured:", E.message)
+        server.shutdown("Exception occured: {}\nShutting down!".format(E.message))
+
+    time.sleep(3)
+    print("OUTSIDE: Exiting...")
+
+
 def main():
     """Does the argparse and launches a server"""
     import sys
@@ -360,4 +375,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    debugmain()

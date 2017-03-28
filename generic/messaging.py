@@ -1,5 +1,6 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+import socket
 import time
 import threading as thr
 
@@ -19,7 +20,8 @@ class Messaging(object):
         self.tag = tag
         self.recvbuffer = []
         self.sendbuffer = []
-        self.sock = sock
+        self.sock = sock  # type: socket.socket
+        self.sock.settimeout(1)
         self.job_in = thr.Thread(target=self.flow_in)
         self.job_out = thr.Thread(target=self.flow_out)
 
@@ -51,9 +53,17 @@ class Messaging(object):
         """
         while self.running:
             data = b""
-            while data[-5:] != b"ROGER":
-                slc = self.sock.recv(1024)
-                data += slc
+            while data[-5:] != b"ROGER" and self.running:
+                try:
+                    slc = self.sock.recv(1024)
+                except socket.timeout:
+                    pass
+                else:
+                    data += slc
+            if not self.running:
+                if data:
+                    print("MESSENGER: data left hanging:" + data[:-5].decode("utf8"))
+                    return
             data = data[:-5].decode("utf8")
             self.recvbuffer.extend(data.split("ROGER"))
             print("Recvd message:", self.recvbuffer[-1])

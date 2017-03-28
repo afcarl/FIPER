@@ -1,7 +1,7 @@
 import numpy as np
 
 # Ports
-STREAM_SERVER_START_PORT = 2000  # incremented for every car
+STREAM_SERVER_PORT = 1235
 MESSAGE_SERVER_PORT = 1234
 
 # Stream's tick time in seconds:

@@ -12,12 +12,13 @@ import threading as thr
 import cv2
 
 # Project imports
+import sys
 from FIPER.generic import Messaging
-from FIPER.generic import DTYPE, MESSAGE_SERVER_PORT
+from FIPER.generic import DTYPE, MESSAGE_SERVER_PORT, STREAM_SERVER_PORT
 from FIPER.generic import white_noise
 
-DUMMY_VIDEOFILE = "/data/Prog/data/raw/vid/go.avi"
-DUMMY_FRAMESIZE = (640, 480, 3)  # = 921,600 B in uint8
+DUMMY_VIDEOFILE = ""
+DUMMY_FRAMESIZE = (480, 640, 3)  # = 921,600 B in uint8
 
 
 class CaptureDeviceMocker(object):
@@ -40,9 +41,9 @@ class TCPStreamer(object):
     switching the stream on and off in a managed way.
     """
 
-    def __init__(self, master, sock):
+    def __init__(self, master):
         self.master = master
-        self.sock = sock
+        self.sock = None
         self.eye = None
         self._frameshape = None
 
@@ -51,6 +52,9 @@ class TCPStreamer(object):
 
         self.running = False
         self.worker = None
+
+    def connect(self, sock):
+        self.sock = sock
 
     @property
     def frameshape(self):
@@ -77,9 +81,6 @@ class TCPStreamer(object):
         self.eye = CaptureDeviceMocker
         return self.eye.read()
 
-    def connect(self, ip, port):
-        self.sock.connect((ip, port))
-
     def start(self):
         if self.sock is None:
             print("TCPStreamer: object unitialized! Please call setup(dsock) first!")
@@ -97,6 +98,7 @@ class TCPStreamer(object):
         Send the frames to the UDP client (the main server)
         """
         pushed = 0
+        self.running = True
         while self.running:
             success, frame = self.frame()
             ##########################################
@@ -134,38 +136,33 @@ class TCPCar(object):
     def connect(self, server_ip):
         """Establishes connections with the server"""
 
-        def setup_sockets():
-            msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.streamer = TCPStreamer(self, dsocket)
-            return msocket
+        self.streamer = TCPStreamer(self)
 
-        def setup_message_connection(msocket):
+        def setup_message_connection():
+            msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             msocket.connect((server_ip, MESSAGE_SERVER_PORT))
             self.messenger = Messaging(msocket, tag=b"{}-{}:".format(self.entity_type, self.ID))
+
+        def setup_data_connection():
+            dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            dsocket.connect((server_ip, STREAM_SERVER_PORT))
+            self.streamer.connect(dsocket)
 
         def perform_handshake():
             introduction = "HELLO;" + self.streamer.frameshape
             self.messenger.send(introduction.encode())
-            handshake = self.messenger.recv(timeout=3)
-            self.out("Received handshake:", handshake)
-            hello, dport = handshake.split(":")
-            if hello != "HELLO-PORT" or not dport.isdigit():
-                raise RuntimeError("Wrong handshake from server! Shutting down!")
-            return int(dport)
-
-        def setup_video_connection(dport):
-            self.streamer.connect(server_ip, dport)
+            hello = None
+            while hello is None:
+                hello = self.messenger.recv(timeout=1)
+                self.out("Received handshake:", hello)
+            if hello != "HELLO":
+                print("Wrong handshake from server! Shutting down!")
+                raise RuntimeError("Handshake error!")
 
         # Function body starts here {just to be clear :)}
-        try:
-            msock = setup_sockets()
-            setup_message_connection(msock)
-            port = perform_handshake()
-            setup_video_connection(port)
-        except Exception as E:
-            self.shutdown("Exception in connect: {}\nShutting down..."
-                          .format(E.message))
+        setup_message_connection()
+        perform_handshake()
+        setup_data_connection()
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
@@ -218,6 +215,13 @@ def readargs():
     return [raw_input(pleading + q + " > ") for q in question]
 
 
+def debugmain(ID):
+    lightning_mcqueen = TCPCar(ID=ID, address="127.0.0.1", server_ip="127.0.0.1")
+    lightning_mcqueen.mainloop()
+
+    print("OUTSIDE: Car was shut down nicely.")
+
+
 def main():
     localIP, serverIP, carID = readargs()
     lightning_mcqueen = TCPCar(ID=carID, address=localIP, server_ip=serverIP)
@@ -227,4 +231,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    debugmain("TestCar" if len(sys.argv) == 1 else sys.argv[1])
