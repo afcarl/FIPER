@@ -15,18 +15,20 @@ class StreamDisplayer(thr.Thread):
 
     """
     Handles the cv2 displays.
-    Currently faulty!
-    Multiple streams get mixed up in the same window...
+    Untested yet! (Only useful for debug anyways)
     """
+
+    instances = 0
 
     def __init__(self, carint):
         self.interface = carint
-        thr.Thread.__init__(self, target=self.watch)
+        thr.Thread.__init__(self, name="Streamer-of-{}".format(carint.ID))
         self.running = True
         self.online = True
         self.start()
+        StreamDisplayer.instances += 1
 
-    def watch(self):
+    def run(self):
         stream = self.interface.get_stream()
         for i, pic in enumerate(stream, start=1):
             self.interface.out("\rRecieved {:>4} frames of shape {}"
@@ -38,18 +40,26 @@ class StreamDisplayer(thr.Thread):
         cv2.destroyWindow("{} Stream".format(self.interface.car_ID))
         self.online = False
 
+    def __del__(self):
+        StreamDisplayer.instances -= 1
+
 
 class Console(thr.Thread):
 
     """
+    Singleton class!
     Abstraction of the server console.
     """
+
+    instances = 0
 
     def __init__(self, master):
         """
         :param master: FleetHandler (server) object
         """
-        thr.Thread.__init__(self, name="Console")
+        if Console.instances > 0:
+            raise RuntimeError("The Singleton [Console] is already instantiated!")
+        thr.Thread.__init__(self, name="Server-console")
         self.master = master
         self.commands = {
             "help": lambda: print("Available commands:", ", "
@@ -64,6 +74,7 @@ class Console(thr.Thread):
             "message": lambda ID, *msg: self.master.cars[ID].send(
                 b" ".join((w.encode() for w in msg)))
         }
+        Console.instances += 1
 
     @property
     def prompt(self):
@@ -83,9 +94,8 @@ class Console(thr.Thread):
                 try:
                     self.commands[cmd](*args)
                 except Exception as E:
-                    print("{} caused: {}".format(cmd, E.message))
-                    self.master.shutdown()
-                    break
+                    print("CONSOLE: The command [{}] caused exception: {}".format(cmd, E.message))
+                    print("CONSOLE: Ignoring commad!")
         print("SERVER: Console shut down correctly")
 
     def read_cmd(self):
@@ -102,30 +112,38 @@ class Console(thr.Thread):
 
 class Listener(thr.Thread):
 
-    instances = 1
+    """
+    Singleton class!
+    Listens for car connections.
+    Creates CarInterface objects.
+    """
+
+    instances = 0
 
     def __init__(self, master):
-        thr.Thread.__init__(self, name="Listener-{}".format(Listener.instances))
+        if Listener.instances > 0:
+            raise RuntimeError("The Singleton [Listener] is already instantiated!")
+        thr.Thread.__init__(self, name="Sever-Listener".format(Listener.instances))
         self.master = master  # type: FleetHandler
 
         Listener.instances += 1
 
     def run(self):
         try:
-            self.setup_server()
-            self.mainloop()
+            self._set_server_flags_to_running_mode()
+            self._main_loop_listening_for_car_connections()
         except:
             raise
         finally:
-            self.teardown()
+            self._tear_down_connection_on_exit()
 
-    def setup_server(self):
+    def _set_server_flags_to_running_mode(self):
         self.master.running = True
         self.master.status = "Listening"
         print("\nSERVER {}: Awaiting connections...\n".format(self.name))
         self.master.msocket.listen(1)
 
-    def mainloop(self):
+    def _main_loop_listening_for_car_connections(self):
         while self.master.running:
             try:
                 conn, (ip, port) = self.master.msocket.accept()
@@ -133,37 +151,72 @@ class Listener(thr.Thread):
                 time.sleep(1)
             else:
                 print("\nSERVER: Received connection from", ":".join((ip, str(port))), "\n")
-                self.add_new_connection(conn, ip)
+                self._coordinate_handshake_with_car(conn, ip)
 
-    def teardown(self):
+    def _tear_down_connection_on_exit(self):
         self.master.msocket.close()
         print("SERVER {}: exiting".format(self.name))
 
-    def add_new_connection(self, msock, addr):
-        # TODO: split this monster into smaller methods
-        messenger = Messaging(msock)
-        # Introduction is: {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
-        introduction = messenger.recv(timeout=3)
-        print("SERVER: got introduction:", introduction)
-        if ":HELLO;" not in introduction:
-            raise RuntimeError("Wrong introductory message from a network entity!")
-        introduction = introduction.split(":HELLO;")
-        entity_type, ID = introduction[0].split("-")
-        if entity_type == "car":
-            try:
-                frameshape = [int(s) for s in introduction[1].split("x")]
-            except ValueError:
-                raise ValueError("Received wrong frameshape definition from {}!\nGot {}"
-                                 .format(ID, introduction[1]))
-            if len(frameshape) < 2 or len(frameshape) > 3:
+    def _coordinate_handshake_with_car(self, msock, addr):
+
+        def valid_introduction(intr):
+            if ":HELLO;" in intr:
+                return True
+            print("LISTENER: invalid introduction!")
+            return False
+
+        def valid_entity_type(et):
+            if et == "car":
+                return True
+            print("LISTENER: unknown entity type:", entity_type)
+            return False
+
+        def valid_frame_shape(fs):
+            if len(fs) < 2 or len(fs) > 3:
                 errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
                           "Got {} from {}!".format(ID, frameshape))
-                raise ValueError(errmsg)
-            self.master.cars[ID] = CarInterface(ID, addr, frameshape, messenger, addr)
-        else:
-            print("Unknown entity type:", entity_type)
+                print(errmsg)
+                return False
+            return True
+
+        def parse_introductory_string(s):
+            """
+            Introduction looks like this:
+            {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
+            """
+
+            s = s.split(":HELLO;")
+            s = s[0].split(":")
+            etype, remoteID = s[0].split("-")
+
+            try:
+                shp = [int(s) for s in s[1].split("x")]
+            except ValueError:
+                print("LISTENER: Received wrong frameshape definition from {}!\nGot {}"
+                      .format(remoteID, introduction[1]))
+                return None
+            return etype, remoteID, shp
+
+        def respond_to_car(msngr):
+            msngr.send(b"HELLO-PORT:{}".format(self.master.nextport))
+
+        messenger = Messaging(msock)
+        introduction = messenger.recv(timeout=3)
+        print("LISTENER: got introduction:", introduction)
+        if not valid_introduction(introduction):
+            return
+        result = parse_introductory_string(introduction)
+        if not result:
+            return
+        entity_type, ID, frameshape = result
+        if not all((valid_entity_type(entity_type),
+                    valid_frame_shape(frameshape))):
+            return
+        respond_to_car(messenger)
+        self.master.cars[ID] = CarInterface(ID, addr, frameshape, messenger, addr)
 
 
+# noinspection PyUnusedLocal
 class FleetHandler(object):
 
     """
@@ -178,6 +231,8 @@ class FleetHandler(object):
         self.watchers = {}
         self.since = datetime.now()
 
+        self._nextport = STREAM_SERVER_START_PORT
+
         # Socket for receiving message connections
         self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.msocket.settimeout(3)
@@ -189,6 +244,11 @@ class FleetHandler(object):
 
         self.running = False
         self.status = "Idle"
+
+    @property
+    def nextport(self):
+        self._nextport += 1
+        return self._nextport
 
     def kill_car(self, ID, *args):
         """
