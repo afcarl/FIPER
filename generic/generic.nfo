@@ -1,0 +1,10 @@
+# For all the generic/common mumbo-jumbo
+
+- const.py defines some commonly used constants
+- messaging.py defines the Messenger class, which groups together all
+message-passing related functionalities.
+- routines.py contains some commonly used functions.
+- util.py contains miscellaneous stuff.
+
+All submodules are imported by __init__, so everything is accessible by
+"from FIPER.generic import <thing>"

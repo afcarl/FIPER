@@ -1,1 +1,7 @@
 # For all of the HOST sources.
+
+- bridge.py is the main server script
+- interfaces.py defines the base interface class and various derived classes.
+The server uses these interface types to communicate with network entities such as
+cars and clients.
+- streamhandler.py contains the StreamDisplayer thread, factored out from CarInterface.

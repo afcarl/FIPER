@@ -1,157 +1,282 @@
-from __future__ import print_function, absolute_import, division
+from __future__ import print_function, absolute_import, unicode_literals
 
+import time
 import socket
 import threading as thr
 from datetime import datetime
 
-import cv2
-
+from FIPER.host.interfaces import CarInterface
+from FIPER.host.streamhandler import StreamDisplayer
 from FIPER.generic import *
 
 
-class StreamDisplayer(thr.Thread):
+class Console(thr.Thread):
 
     """
-    Handles the cv2 displays.
-    Currently faulty!
-    Multiple streams get mixed up in the same window...
+    Singleton class!
+    Abstraction of the server's console.
     """
 
-    def __init__(self, carint):
-        self.interface = carint
-        thr.Thread.__init__(self, target=self.watch)
-        self.running = True
-        self.online = True
-        self.start()
+    instances = 0
 
-    def watch(self):
-        stream = self.interface.get_stream()
-        for i, pic in enumerate(stream, start=1):
-            self.interface.out("\rRecieved {:>4} frames of shape {}"
-                               .format(i, pic.shape), end="")
-            cv2.imshow("{} Stream".format(self.interface.car_ID), pic)
-            cv2.waitKey(1)
-            if not self.running:
-                break
-        cv2.destroyWindow("{} Stream".format(self.interface.car_ID))
-        self.online = False
+    def __init__(self, master):
+        """
+        :param master: FleetHandler (server) object
+        """
+        if Console.instances > 0:
+            raise RuntimeError("The Singleton [Console] is already instantiated!")
+        thr.Thread.__init__(self, name="Server-console")
+        self.master = master
+        self.commands = {
+            "help": lambda: print("Available commands:", ", "
+                                  .join(sorted(self.commands))),
+            "cars": lambda: print("Cars online:", ", "
+                                  .join(sorted(self.master.cars))),
+            "kill": self.master.kill_car,
+            "watch": self.master.watch_car,
+            "unwatch": self.master.stop_watch,
+            "shutdown": self.master.shutdown,
+            "status": self.master.report,
+            "start": self.master.listener.start,
+            "message": lambda ID, *msg: self.master.cars[ID].send(
+                b" ".join((w.encode() for w in msg)))
+        }
+        Console.instances += 1
 
+    @property
+    def prompt(self):
+        return "FIPER bridge [{}] > ".format(self.master.status)
 
-class CarInterface(object):
-    """
-    Abstraction of a car-server connection.
-    Handles message-passing and stream receiving.
-    """
-
-    def __init__(self, msock, srvip, rcvport):
-        # The server's message socket
-        self.msocket = msock
-        self.send_message = lambda m, t=0.5: Messaging.send(msock, m, t)
-        self.get_message = lambda: Messaging.recv(msock)
-
-        # car_ID and framesize are sent throught the message socket
-        self.car_ID = self.get_message()
-        self.framesize = [int(s) for s in self.get_message().split("x")]
-        self.out("Target ID:", self.car_ID)
-        self.out("Framesize:", self.framesize)
-
-        self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.dsocket.bind((srvip, rcvport))
-        self.out("Stream receiver port bound to {}:{}".format(srvip, rcvport))
-        self.send_message(str(rcvport).encode(), t=0.5)
-
-    def out(self, *args, **kw):
-        """Wrapper for print(). Appends car's ID to every output line"""
-        sep, end = kw.get("sep", " "), kw.get("end", "\n")
-        print("IFACE {}: ".format(self.car_ID), *args, sep=sep, end=end)
-
-    def get_stream(self):
-        """Generator function that yields the received video frames"""
-        datalen = np.prod(self.framesize)
-        data = b""
+    def run(self):
+        """
+        Server console main loop (and program main loop)
+        """
         while 1:
-            while len(data) < datalen:
-                data += self.dsocket.recv(1024)
-            yield np.fromstring(data[:datalen], dtype=DTYPE).reshape(self.framesize)
-            data = data[datalen:]
+            cmd, args = self.read_cmd()
+            if not cmd:
+                continue
+            elif cmd == "shutdown":
+                break
+            else:
+                try:
+                    self.commands[cmd](*args)
+                except Exception as E:
+                    print("CONSOLE: The command [{}] caused exception: {}".format(cmd, E.message))
+                    print("CONSOLE: Ignoring commad!")
+        self.master.shutdown()
+        print("SERVER: Console shut down correctly")
 
-    def __repr__(self):
-        return "CarInterface {}".format(self.car_ID)
+    def read_cmd(self):
+        c = raw_input(self.prompt).split(" ")
+        cmd = c[0].lower()
+        if len(c) > 1:
+            args = c[1:]
+        else:
+            args = ""
+        return cmd, args
+
+    def cmd_parser(self, cmd, args):
+        if cmd[0] not in self.commands:
+            print("SERVER: Unknown command:", cmd)
+        else:
+            self.commands[cmd](*args)
 
 
+class Listener(thr.Thread):
+
+    """
+    Singleton class!
+    Listens for incoming car connections for the server.
+    Coordinates the creation of CarInterface objects.
+    """
+
+    instances = 0
+
+    def __init__(self, master):
+        if Listener.instances > 0:
+            raise RuntimeError("The Singleton [Listener] is already instantiated!")
+        thr.Thread.__init__(self, name="Server-Listener".format(Listener.instances))
+        self.master = master  # type: FleetHandler
+
+        Listener.instances += 1
+
+    def run(self):
+        try:
+            self._set_server_flags_to_running_mode()
+            self._main_loop_listening_for_car_connections()
+        except:
+            raise
+        finally:
+            self.teardown()
+
+    def _set_server_flags_to_running_mode(self):
+        self.master.running = True
+        self.master.status = "Listening"
+        print("\nLISTENER: Server awaiting connections...\n".format(self.name))
+        self.master.msocket.listen(1)
+
+    def _main_loop_listening_for_car_connections(self):
+        while self.master.running:
+            try:
+                conn, (ip, port) = self.master.msocket.accept()
+            except socket.timeout:
+                time.sleep(1)
+            else:
+                print("\nSERVER: Received connection from {}:{}\n"
+                      .format(ip, port))
+                self._coordinate_handshake_with_car(conn)
+        self.teardown()
+
+    def _coordinate_handshake_with_car(self, msock):
+
+        def valid_introduction(intr):
+            if ":HELLO;" in intr:
+                return True
+            print("LISTENER: invalid introduction!")
+            return False
+
+        def valid_entity_type(et):
+            if et == "car":
+                return True
+            print("LISTENER: unknown entity type:", entity_type)
+            return False
+
+        def valid_frame_shape(fs):
+            if len(fs) < 2 or len(fs) > 3:
+                errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
+                          "Got {} from {}!".format(ID, frameshape))
+                print(errmsg)
+                return False
+            return True
+
+        def parse_introductory_string(s):
+            """
+            Introduction looks like this:
+            {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
+            """
+
+            s = s.split(":HELLO;")
+            etype, remoteID = s[0].split("-")
+
+            try:
+                shp = [int(sp) for sp in s[1].split("x")]
+            except ValueError:
+                print("LISTENER: Received wrong frameshape definition from {}!\nGot {}"
+                      .format(remoteID, introduction[1]))
+                return None
+            return etype, remoteID, shp
+
+        def respond_to_car(msngr):
+            msngr.send(b"HELLO")
+
+        messenger = Messaging(msock)
+        introduction = None
+        while introduction is None:
+            introduction = messenger.recv(timeout=1)
+            print("LISTENER: got introduction:", introduction)
+        if not valid_introduction(introduction):
+            return
+        result = parse_introductory_string(introduction)
+        if not result:
+            return
+        entity_type, ID, frameshape = result
+        if not all((valid_entity_type(entity_type),
+                    valid_frame_shape(frameshape))):
+            return
+        respond_to_car(messenger)
+        self.master.dsocket.listen(1)
+        conn, daddr = self.master.dsocket.accept()
+        self.master.cars[ID] = CarInterface(
+            ID=ID, conn=conn, frameshape=frameshape, messenger=messenger)
+
+    def teardown(self):
+        self.master.msocket.close()
+        print("SERVER {}: exiting".format(self.name))
+
+    def __del__(self):
+        self.teardown()
+
+
+# noinspection PyUnusedLocal
 class FleetHandler(object):
 
     """
     Class of the main server.
-    Coordinates connection bootsraping, teardown,
-    stream display for multiple car-server connections.
+    Groups together the following concepts:
+    - Console is run in the main thread, waiting for and parsing input
+    commands.
+    - Listener is listening for incomming car connections in a separate thread.
+    It also coordinates the creation and validation of new car interfaces.
+    - CarInterface instances are stored in the .cars dictionary.
+    - StreamDisplayer objects can be attached to CarInterface objects and
+    are run in a separate thread each.
+    - FleetHandler itself is responsible for sending commands to CarInterfaces
+    and to coordinate the shutdown of the cars on this side, etc.
     """
 
-    def __init__(self, ip=None):
+    def __init__(self, ip):
         self.ip = ip
         self.cars = {}
         self.watchers = {}
         self.since = datetime.now()
-        self.nextport = STREAM_SERVER_PORT
 
         # Socket for receiving message connections
         self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.msocket.settimeout(3)
-        self.msocket.bind(((ip if ip is not None else my_ip()), MESSAGE_SERVER_PORT))
-        print("SERVER: msocket bound to", ip)
+        self.msocket.bind((ip, MESSAGE_SERVER_PORT))
+        self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.dsocket.bind((ip, STREAM_SERVER_PORT))
+        print("SERVER: sockets are bound to {}:{}/{}"
+              .format(ip, MESSAGE_SERVER_PORT, STREAM_SERVER_PORT))
 
-        # This thread looks for new cars on the network
-        self.listener = thr.Thread(name="Listener", target=self.listen)
+        self.listener = Listener(self)
+        self.console = Console(self)
 
         self.running = False
         self.status = "Idle"
-
-    def start_listening(self):
-        """
-        Launches the listener thread,
-        which looks for new cars on the network
-        """
-        self.running = True
-        self.status = "Listening"
-        self.listener.start()
 
     def kill_car(self, ID, *args):
         """
         Sends a shutdown message for a remote car, then
         tears down the connection and does the cleanup.
         """
+        if ID not in self.cars:
+            print("SERVER: no such car:", ID)
+            return
         if ID in self.watchers:
             self.stop_watch(ID)
-        msck = self.cars[ID].msocket
-        Messaging.send(msck, "shutdown")
+        carifc = self.cars[ID]
+        carifc.send("shutdown")
         time.sleep(3)
 
-        status = Messaging.recv(msck, timeout=5)
+        status = carifc.recv()
         if status is None:
-            print("SERVER: {} didn't shut down as expected!".format(ID))
+            print("SERVER: Car-{} didn't shut down as expected!".format(ID))
         elif status == "{} offline".format(ID):
-            print("SERVER {} shut down as expected".format(ID))
+            print("SERVER: Car-{} shut down as expected".format(ID))
         else:
-            assert False, "Shame on YOU, Developer!"
+            print("SERVER: received unknown status from Car-{}: {}"
+                  .format(ID, status))
 
         del self.cars[ID]
 
     def watch_car(self, ID, *args):
         """
         Initializes streaming, then launches a StreamDisplayer,
-        which is run by a separate thread.
+        which is run in a separate thread.
         """
 
-        Messaging.send(self.cars[ID].msocket, "stream on")
+        self.cars[ID].send("stream on")
         time.sleep(3)
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
 
     def stop_watch(self, ID, *args):
-        """Tears down the StreamDisplayer and shuts down a stream"""
-        Messaging.send(self.cars[ID].msocket, "stream off")
+        """
+        Tears down the StreamDisplayer and shuts down a stream
+        """
+        self.cars[ID].send("stream off")
         self.watchers[ID].running = False
         time.sleep(3)
-        # assert not self.watchers[ID].online
         del self.watchers[ID]
 
     def shutdown(self, *args):
@@ -159,95 +284,65 @@ class FleetHandler(object):
         Shuts the server down, terminates all threads and
         does the necessary cleanup
         """
+        self.running = False
+
+        exits = [None]*len(self.cars)
+
         for ID, car in sorted(self.cars.items()):
-            Messaging.send(car.msocket, "shutdown", wait=0.1)
             if ID in self.watchers:
                 self.stop_watch(ID)
+            car.send("shutdown")
 
         rounds = 0
         while self.cars:
+            print("SERVER: Car corpse collection round {}/{}".format(rounds+1, 4))
             time.sleep(3)
             for ID, car in sorted(self.cars.items()):
-                msg = Messaging.recv(car.msocket, timeout=0.1)
-                if msg != "{} offline".format(ID):
+                msg = car.recv()
+                if msg != "car-{}:offline".format(ID):
+                    print("SERVER: Received wrong corpse message:", msg)
                     continue
-                self.cars[ID].msocket.close()
-                self.cars[ID].dsocket.close()
+                self.cars[ID].teardown()
                 del self.cars[ID]
 
             if rounds >= 3:
-                print("SERVER: {} didn't shut down correnctly"
+                print("SERVER: cars: [{}] didn't shut down correctly"
                       .format(", ".join(self.cars.keys())))
                 break
+            rounds += 1
         else:
             print("SERVER: All cars shut down correctly!")
 
-        self.running = False
-
     def report(self, *args):
-        """Prints a nice server status report"""
+        """
+        Prints a nice server status report
+        """
         repchain = ("Online " if self.running else "Offline ")
         repchain += "FIPER Server\n"
         repchain += "-" * (len(repchain) - 1) + "\n"
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
-        repchain += "Cars online: {}".format(len(self.cars))
+        repchain += "Cars online: {}\n".format(len(self.cars))
         print("\n" + repchain + "\n")
-
-    def console(self):
-        """
-        Server console main loop
-        """
-        commands = {
-            "help": lambda: print("Available commands:", ", ".join(sorted(commands))),
-            "cars": lambda: print("Cars online:", ", ".join(sorted(self.cars))),
-            "kill": self.kill_car,
-            "watch": self.watch_car,
-            "shutdown": self.shutdown,
-            "status": self.report,
-            "start": self.start_listening,
-            "message": lambda ID, *msg: Messaging.send(self.cars[ID].msocket, " ".join(msg))
-        }
-        while 1:
-            prompt = "FIPER bridge [{}] > ".format(self.status)
-            c = raw_input(prompt).split(" ")
-            cmd, args = c[0].lower(), c[1:]
-            if not cmd:
-                time.sleep(0.1)
-                continue
-            if c[0] not in commands:
-                print("SERVER: Unknown command:", cmd)
-            else:
-                # print("SERVER: Reveived command:", cmd)
-                commands[cmd](*args)
-            if cmd == "shutdown":
-                print("SERVER: Console shut down correctly")
-                break
-
-    def listen(self):
-        """
-        Accepts connections from cars
-        self.listener runs this in a separate thread
-        """
-        print("\nSERVER: Awaiting connections...\n")
-        self.msocket.listen(1)
-        while self.running:
-            try:
-                conn, address = self.msocket.accept()
-            except:  # Except timeout
-                time.sleep(1)
-            else:
-                print("\nSERVER: Received connection from", address, "\n")
-                ifc = CarInterface(conn, self.ip, self.nextport)
-                self.cars[ifc.car_ID] = ifc
-                self.nextport += 1
-        self.msocket.close()
-        print("SERVER: Listener exiting")
 
 
 def readargs():
     pleading = "Please supply "
     question = ["the local IP address of this server"]
     return [raw_input(pleading + q + " > ") for q in question][0]
+
+
+def debugmain():
+    """Launches the server on localhost"""
+    server = FleetHandler("127.0.0.1")
+    try:
+        server.listener.start()
+        server.console.run()
+    except Exception as E:
+        print("OUTSIDE: exception occured:", E.message)
+        server.shutdown("Exception occured: {}\nShutting down!".format(E.message))
+
+    time.sleep(3)
+    print("OUTSIDE: Exiting...")
 
 
 def main():
@@ -260,11 +355,16 @@ def main():
         serverIP = readargs()
 
     server = FleetHandler(serverIP)
-    server.console()
+    try:
+        server.console.run()
+    except Exception as E:
+        print("OUTSIDE: exception occured:", E.message)
+    finally:
+        server.shutdown()
 
     time.sleep(3)
     print("OUTSIDE: Exiting...")
 
 
 if __name__ == '__main__':
-    main()
+    debugmain()
