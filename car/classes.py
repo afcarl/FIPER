@@ -1,5 +1,4 @@
-from __future__ import (print_function, absolute_import,
-                        division, unicode_literals)
+from __future__ import print_function, absolute_import, unicode_literals
 
 # STDLIB imports
 import os
@@ -15,22 +14,9 @@ import cv2
 import sys
 from FIPER.generic import Messaging
 from FIPER.generic import DTYPE, MESSAGE_SERVER_PORT, STREAM_SERVER_PORT
-from FIPER.generic import white_noise
+from FIPER.generic import CaptureDeviceMocker
 
 DUMMY_VIDEOFILE = ""
-DUMMY_FRAMESIZE = (480, 640, 3)  # = 921,600 B in uint8
-
-
-class CaptureDeviceMocker(object):
-
-    """
-    Mocks the interface of cv2.VideoCapture,
-    produces a white noise stream.
-    """
-
-    @staticmethod
-    def read():
-        return True, white_noise(DUMMY_FRAMESIZE)
 
 
 class TCPStreamer(object):
@@ -90,6 +76,7 @@ class TCPStreamer(object):
             self.worker.start()
 
     def frame(self):
+        """Returns a single frame"""
         return self.eye.read()
 
     def run(self):
@@ -116,9 +103,10 @@ class TCPStreamer(object):
 class TCPCar(object):
 
     """
-    A video stream server, located somewhere on the local network.
+    A video streamer, located somewhere on the local network.
     It has a mounted video capture device, read by openCV.
-    Video frames are forwarded to a central server for further processing
+    Video frames are forwarded to a central server for further processing.
+    The TCPCar is implemented as a TCP client.
     """
 
     entity_type = "car"
@@ -166,7 +154,7 @@ class TCPCar(object):
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
-        sep, end = kw.get("sep", " "), kw.get("end", "\n")
+        sep, end = kw.get(b"sep", " "), kw.get(b"end", "\n")
         print("CAR {}: ".format(self.ID), *args, sep=sep, end=end)
 
     def shutdown(self, msg=None):

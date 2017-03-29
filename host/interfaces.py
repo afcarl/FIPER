@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, absolute_import, unicode_literals
 
 import numpy as np
 import time
@@ -8,13 +8,12 @@ from FIPER.generic import *
 
 class NetworkEntity(object):
     """
-    Abstraction of a server-someone connection
+    Abstraction of a server-entity connection,
+    where entity may be a car or a client.
     """
 
-    def __init__(self, ID, ip, messenger):
-        # car_ID and framesize are sent throught the message socket
+    def __init__(self, ID, messenger):
         self.ID = ID
-        self.ip = ip
         self.messenger = messenger
         self.send = messenger.send
         self.recv = messenger.recv
@@ -28,10 +27,14 @@ class NetworkEntity(object):
 class CarInterface(NetworkEntity):
     """
     Abstraction of a server-car connection.
+    Groups together two concepts:
+    - the message connection
+    - the data connection, used for the A/V stream
+    and defines the interface to use these
     """
 
-    def __init__(self, ID, conn, srv_ip, frameshape, messenger):
-        super(CarInterface, self).__init__(ID=ID, ip=srv_ip, messenger=messenger)
+    def __init__(self, ID, conn, frameshape, messenger):
+        super(CarInterface, self).__init__(ID=ID, messenger=messenger)
         self.dsocket = conn
         print("CarInterface conn:")
         self.framesize = frameshape
@@ -49,6 +52,11 @@ class CarInterface(NetworkEntity):
             yield np.fromstring(data[:datalen], dtype=DTYPE).reshape(self.framesize)
             # #####################################################
             data = data[datalen:]
+
+    def teardown(self):
+        self.messenger.teardown()
+        self.dsocket.close()
+        self.out("Teardown finished!")
 
 
 class ClientInterface(NetworkEntity):

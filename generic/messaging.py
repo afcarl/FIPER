@@ -39,7 +39,6 @@ class Messaging(object):
         while self.running:
             if self.sendbuffer:
                 msg = self.sendbuffer.pop(0)
-                print("Sending message:", msg)
                 for slc in (msg[i:i+1024] for i in range(0, len(msg), 1024)):
                     self.sock.send(slc)
             time.sleep(0.5)
@@ -66,7 +65,6 @@ class Messaging(object):
                     return
             data = data[:-5].decode("utf8")
             self.recvbuffer.extend(data.split("ROGER"))
-            print("Recvd message:", self.recvbuffer[-1])
         print("Messenger inflow worker exited!")
 
     def send(self, *msgs):

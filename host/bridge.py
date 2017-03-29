@@ -1,4 +1,4 @@
-from __future__ import print_function, absolute_import, division, unicode_literals
+from __future__ import print_function, absolute_import, unicode_literals
 
 import time
 import socket
@@ -30,8 +30,8 @@ class StreamDisplayer(thr.Thread):
     def run(self):
         stream = self.interface.get_stream()
         for i, pic in enumerate(stream, start=1):
-            self.interface.out("\rRecieved {:>4} frames of shape {}"
-                               .format(i, pic.shape), end="")
+            # self.interface.out("\rRecieved {:>4} frames of shape {}"
+            #                    .format(i, pic.shape), end="")
             cv2.imshow("{} Stream".format(self.interface.ID), pic)
             cv2.waitKey(1)
             if not self.running:
@@ -67,6 +67,7 @@ class Console(thr.Thread):
                                   .join(sorted(self.master.cars))),
             "kill": self.master.kill_car,
             "watch": self.master.watch_car,
+            "unwatch": self.master.stop_watch,
             "shutdown": self.master.shutdown,
             "status": self.master.report,
             "start": self.master.listener.start,
@@ -81,7 +82,7 @@ class Console(thr.Thread):
 
     def run(self):
         """
-        Server console main loop
+        Server console main loop (and program main loop)
         """
         while 1:
             cmd, args = self.read_cmd()
@@ -95,11 +96,16 @@ class Console(thr.Thread):
                 except Exception as E:
                     print("CONSOLE: The command [{}] caused exception: {}".format(cmd, E.message))
                     print("CONSOLE: Ignoring commad!")
+        self.master.shutdown()
         print("SERVER: Console shut down correctly")
 
     def read_cmd(self):
         c = raw_input(self.prompt).split(" ")
-        cmd, args = c[0].lower(), c[1:]
+        cmd = c[0].lower()
+        if len(c) > 1:
+            args = c[1:]
+        else:
+            args = ""
         return cmd, args
 
     def cmd_parser(self, cmd, args):
@@ -134,7 +140,7 @@ class Listener(thr.Thread):
         except:
             raise
         finally:
-            self._tear_down_connection_on_exit()
+            self.teardown()
 
     def _set_server_flags_to_running_mode(self):
         self.master.running = True
@@ -151,13 +157,10 @@ class Listener(thr.Thread):
             else:
                 print("\nSERVER: Received connection from {}:{}\n"
                       .format(ip, port))
-                self._coordinate_handshake_with_car(conn, ip)
+                self._coordinate_handshake_with_car(conn)
+        self.teardown()
 
-    def _tear_down_connection_on_exit(self):
-        self.master.msocket.close()
-        print("SERVER {}: exiting".format(self.name))
-
-    def _coordinate_handshake_with_car(self, msock, addr):
+    def _coordinate_handshake_with_car(self, msock):
 
         def valid_introduction(intr):
             if ":HELLO;" in intr:
@@ -217,8 +220,14 @@ class Listener(thr.Thread):
         self.master.dsocket.listen(1)
         conn, daddr = self.master.dsocket.accept()
         self.master.cars[ID] = CarInterface(
-            ID=ID, conn=conn, srv_ip=self.master.ip, frameshape=frameshape,
-            messenger=messenger)
+            ID=ID, conn=conn, frameshape=frameshape, messenger=messenger)
+
+    def teardown(self):
+        self.master.msocket.close()
+        print("SERVER {}: exiting".format(self.name))
+
+    def __del__(self):
+        self.teardown()
 
 
 # noinspection PyUnusedLocal
@@ -226,8 +235,15 @@ class FleetHandler(object):
 
     """
     Class of the main server.
-    Coordinates connection bootsraping, teardown,
-    stream display for multiple car-server connections.
+    Groups together the following concepts:
+    - Console is run in the main thread, waiting for and parsing input
+    commands.
+    - Listener is listening for incomming car connections.
+    It also coordinates the creation and validation of new car interfaces.
+    - Several CarInterface objects are stored in the .cars dictionary.
+    - StreamDisplayer objects can be attached to CarInterface objects.
+    - FleetHandler itself is responsible for sending commands to CarInterfaces
+    and to coordinate the shutdown of the cars on this side, etc.
     """
 
     def __init__(self, ip):
@@ -256,6 +272,9 @@ class FleetHandler(object):
         Sends a shutdown message for a remote car, then
         tears down the connection and does the cleanup.
         """
+        if ID not in self.cars:
+            print("SERVER: no such car:", ID)
+            return
         if ID in self.watchers:
             self.stop_watch(ID)
         carifc = self.cars[ID]
@@ -264,18 +283,19 @@ class FleetHandler(object):
 
         status = carifc.recv()
         if status is None:
-            print("SERVER: {} didn't shut down as expected!".format(ID))
+            print("SERVER: Car-{} didn't shut down as expected!".format(ID))
         elif status == "{} offline".format(ID):
-            print("SERVER {} shut down as expected".format(ID))
+            print("SERVER: Car-{} shut down as expected".format(ID))
         else:
-            assert False, "Shame on YOU, Developer!"
+            print("SERVER: received unknown status from Car-{}: {}"
+                  .format(ID, status))
 
         del self.cars[ID]
 
     def watch_car(self, ID, *args):
         """
         Initializes streaming, then launches a StreamDisplayer,
-        which is run by a separate thread.
+        which is run in a separate thread.
         """
 
         self.cars[ID].send("stream on")
@@ -296,30 +316,34 @@ class FleetHandler(object):
         Shuts the server down, terminates all threads and
         does the necessary cleanup
         """
+        self.running = False
+
+        exits = [None]*len(self.cars)
+
         for ID, car in sorted(self.cars.items()):
-            car.send("shutdown")
             if ID in self.watchers:
                 self.stop_watch(ID)
+            car.send("shutdown")
 
         rounds = 0
         while self.cars:
+            print("SERVER: Car corpse collection round {}/{}".format(rounds+1, 4))
             time.sleep(3)
             for ID, car in sorted(self.cars.items()):
                 msg = car.recv()
-                if msg != "{} offline".format(ID):
+                if msg != "car-{}:offline".format(ID):
+                    print("SERVER: Received wrong corpse message:", msg)
                     continue
-                self.cars[ID].messenger.running = False
-                self.cars[ID].dsocket.close()
+                self.cars[ID].teardown()
                 del self.cars[ID]
 
             if rounds >= 3:
-                print("SERVER: {} didn't shut down correnctly"
+                print("SERVER: cars: [{}] didn't shut down correctly"
                       .format(", ".join(self.cars.keys())))
                 break
+            rounds += 1
         else:
             print("SERVER: All cars shut down correctly!")
-
-        self.running = False
 
     def report(self, *args):
         """
@@ -340,7 +364,7 @@ def readargs():
 
 
 def debugmain():
-    """Does the argparse and launches a server"""
+    """Launches the server on localhost"""
     server = FleetHandler("127.0.0.1")
     try:
         server.listener.start()
