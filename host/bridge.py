@@ -5,42 +5,9 @@ import socket
 import threading as thr
 from datetime import datetime
 
-import cv2
-
 from FIPER.host.interfaces import CarInterface
+from FIPER.host.streamhandler import StreamDisplayer
 from FIPER.generic import *
-
-
-class StreamDisplayer(thr.Thread):
-
-    """
-    Handles the cv2 displays for the car interfaces.
-    """
-
-    instances = 0
-
-    def __init__(self, carint):
-        self.interface = carint  # type: CarInterface
-        thr.Thread.__init__(self, name="Streamer-of-{}".format(carint.ID))
-        self.running = True
-        self.online = True
-        self.start()
-        StreamDisplayer.instances += 1
-
-    def run(self):
-        stream = self.interface.get_stream()
-        for i, pic in enumerate(stream, start=1):
-            # self.interface.out("\rRecieved {:>4} frames of shape {}"
-            #                    .format(i, pic.shape), end="")
-            cv2.imshow("{} Stream".format(self.interface.ID), pic)
-            cv2.waitKey(1)
-            if not self.running:
-                break
-        cv2.destroyWindow("{} Stream".format(self.interface.ID))
-        self.online = False
-
-    def __del__(self):
-        StreamDisplayer.instances -= 1
 
 
 class Console(thr.Thread):
@@ -238,10 +205,11 @@ class FleetHandler(object):
     Groups together the following concepts:
     - Console is run in the main thread, waiting for and parsing input
     commands.
-    - Listener is listening for incomming car connections.
+    - Listener is listening for incomming car connections in a separate thread.
     It also coordinates the creation and validation of new car interfaces.
-    - Several CarInterface objects are stored in the .cars dictionary.
-    - StreamDisplayer objects can be attached to CarInterface objects.
+    - CarInterface instances are stored in the .cars dictionary.
+    - StreamDisplayer objects can be attached to CarInterface objects and
+    are run in a separate thread each.
     - FleetHandler itself is responsible for sending commands to CarInterfaces
     and to coordinate the shutdown of the cars on this side, etc.
     """
