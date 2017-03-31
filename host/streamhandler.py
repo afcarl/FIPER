@@ -20,7 +20,7 @@ class StreamDisplayer(thr.Thread):
         StreamDisplayer.instances += 1
 
     def run(self):
-        stream = self.interface.get_stream()
+        stream = self.interface.framestream()
         for i, pic in enumerate(stream, start=1):
             # self.interface.out("\rRecieved {:>4} frames of shape {}"
             #                    .format(i, pic.shape), end="")

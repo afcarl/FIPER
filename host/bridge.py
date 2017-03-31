@@ -5,7 +5,7 @@ import socket
 import threading as thr
 from datetime import datetime
 
-from FIPER.host.interfaces import CarInterface
+from FIPER.host.interfaces import CarInterface, ClientInterface
 from FIPER.host.streamhandler import StreamDisplayer
 from FIPER.generic import *
 
@@ -103,7 +103,7 @@ class Listener(thr.Thread):
     def run(self):
         try:
             self._set_server_flags_to_running_mode()
-            self._main_loop_listening_for_car_connections()
+            self._main_loop_listening_for_connections()
         except:
             raise
         finally:
@@ -115,7 +115,7 @@ class Listener(thr.Thread):
         print("\nLISTENER: Server awaiting connections...\n".format(self.name))
         self.master.msocket.listen(1)
 
-    def _main_loop_listening_for_car_connections(self):
+    def _main_loop_listening_for_connections(self):
         while self.master.running:
             try:
                 conn, (ip, port) = self.master.msocket.accept()
@@ -124,10 +124,10 @@ class Listener(thr.Thread):
             else:
                 print("\nSERVER: Received connection from {}:{}\n"
                       .format(ip, port))
-                self._coordinate_handshake_with_car(conn)
+                self._coordinate_handshake(conn)
         self.teardown()
 
-    def _coordinate_handshake_with_car(self, msock):
+    def _coordinate_handshake(self, msock):
 
         def valid_introduction(intr):
             if ":HELLO;" in intr:
@@ -136,7 +136,7 @@ class Listener(thr.Thread):
             return False
 
         def valid_entity_type(et):
-            if et == "car":
+            if et in ("client", "car"):
                 return True
             print("LISTENER: unknown entity type:", entity_type)
             return False
@@ -166,9 +166,6 @@ class Listener(thr.Thread):
                 return None
             return etype, remoteID, shp
 
-        def respond_to_car(msngr):
-            msngr.send(b"HELLO")
-
         messenger = Messaging(msock)
         introduction = None
         while introduction is None:
@@ -176,6 +173,7 @@ class Listener(thr.Thread):
             print("LISTENER: got introduction:", introduction)
         if not valid_introduction(introduction):
             return
+
         result = parse_introductory_string(introduction)
         if not result:
             return
@@ -183,15 +181,14 @@ class Listener(thr.Thread):
         if not all((valid_entity_type(entity_type),
                     valid_frame_shape(frameshape))):
             return
-        respond_to_car(messenger)
-        self.master.dsocket.listen(1)
-        conn, daddr = self.master.dsocket.accept()
-        self.master.cars[ID] = CarInterface(
-            ID=ID, conn=conn, frameshape=frameshape, messenger=messenger)
-
-    def teardown(self):
-        self.master.msocket.close()
-        print("SERVER {}: exiting".format(self.name))
+        if entity_type == "car":
+            self.master.cars[ID] = CarInterface(
+                ID, self.master.dsocket, messenger, frameshape
+            )
+        else:
+            self.master.clients[ID] = ClientInterface(
+                ID, self.master.dsocket, messenger
+            )
 
     def __del__(self):
         self.teardown()
@@ -215,6 +212,7 @@ class FleetHandler(object):
     """
 
     def __init__(self, ip):
+        self.clients = {}
         self.ip = ip
         self.cars = {}
         self.watchers = {}
@@ -224,8 +222,11 @@ class FleetHandler(object):
         self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.msocket.settimeout(3)
         self.msocket.bind((ip, MESSAGE_SERVER_PORT))
+        # Socket for receiving data connections
         self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.dsocket.bind((ip, STREAM_SERVER_PORT))
+        self.dsocket.listen(1)
+
         print("SERVER: sockets are bound to {}:{}/{}"
               .format(ip, MESSAGE_SERVER_PORT, STREAM_SERVER_PORT))
 

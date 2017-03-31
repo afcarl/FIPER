@@ -104,9 +104,9 @@ class Messaging(object):
             msgs.append(m)
         return msgs if len(msgs) > 1 else msgs[0]
 
-    def teardown(self):
+    def teardown(self, sleep=3):
         self.running = False
-        time.sleep(3)
+        time.sleep(sleep)
         self.sock.close()
         print("Messenger OUT!")
 
