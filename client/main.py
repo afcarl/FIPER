@@ -1,14 +1,22 @@
+"""
+BUG / HIaNYZo FEATURE REPORT:
+- child ablak megnyitasa utan melleklikkeles eseten a focus elveszik es az enter / escape leutes hatastalan
+- child ablak megnyitasa utan main menu gombok nem tunnek el
+- zene hianyzik
+- hangeffektek hianyzanak
+"""
+
+
 import wx
 import os
 import sys
 import time
 from wx import media
-from threading import Thread
 
 class MainFrame(wx.Frame):
 
-	def __init__(self, place_buttons):
-		wx.Frame.__init__(self, None, place_buttons, title='FIPER')
+	def __init__(self):
+		wx.Frame.__init__(self, None, title='FIPER')
 		# Get screen parameters
 		resolution = wx.DisplaySize()
 		self.width = resolution[0] 
@@ -23,10 +31,12 @@ class MainFrame(wx.Frame):
 		# self.music()
 		# self.Bind('<Escape>', self.quit_window(wx.EVT_BUTTON) )
 		# Place buttons on background
-		if ( place_buttons == True ):
-			self.place_buttons() 
+		self.place_buttons() 
 		# Set Custom Cursor Image 
 		self.set_cursor()
+		
+		self.Bind(wx.EVT_SET_FOCUS, self.push_back_focus)
+		
 		# Show Application ( Grab Focus )
 		self.Show()
 
@@ -117,6 +127,14 @@ class MainFrame(wx.Frame):
 		self.quit_button.SetBitmapHover(self.quit_skin_hover)
 		self.quit_button.SetBitmapSelected(self.quit_skin_click)
 		self.quit_button.Bind(wx.EVT_BUTTON, self.quit_window)
+		
+	def hide_buttons(self, event):
+		
+		self.connect_button.Destroy()
+		self.connect_button.Hide()
+		self.set_background()
+		self.Update()
+		self.connect_button.Update()
 	
 	def initiate_connection(self, event):
 		print 'connected!'
@@ -206,7 +224,7 @@ class MainFrame(wx.Frame):
 		height = (self.height * 0.95)
 		self.options_window = NewFrame(' O P T I O N S ', width, height, x_pos, y_pos)
 		
-		self.options_window.Bind( wx.EVT_KILL_FOCUS, self.options_lost_focus )
+		# self.options_window.Bind( wx.EVT_KILL_FOCUS, self.options_lost_focus )
 		
 		ok_button_x = width * 0.8
 		ok_button_y = height * 0.82
@@ -228,9 +246,9 @@ class MainFrame(wx.Frame):
 		y_pos = (self.height * 0.3)
 		width = (self.width * 0.5)
 		height = (self.height * 0.5)
-		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos)
 		
-		self.quit_window.Bind( wx.EVT_KILL_FOCUS, self.quit_lost_focus )
+		
+		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos)
 		
 		ok_button_x = width * 0.63
 		ok_button_y = height * 0.6
@@ -239,7 +257,6 @@ class MainFrame(wx.Frame):
 										size=(260,130)					)
 		ok_button.SetBitmapHover(self.ok_skin_hover)
 		ok_button.SetBitmapSelected(self.ok_skin_click)
-		# ok_button.Bind(wx.EVT_BUTTON, self.devastation(0) )
 		
 		cancel_button = wx.BitmapButton(	self.quit_window, -1, self.cancel_skin, 
 											pos=(ok_button_x-500,ok_button_y), 
@@ -258,6 +275,10 @@ class MainFrame(wx.Frame):
 		dc.SetFont(font)
 		dc.SetTextForeground('white')
 		dc.DrawText('Oh, really?!', width*0.34, height*0.3)
+	
+	def push_back_focus(self, event):
+		if ( NewFrame.instance_counter == 1 ):
+			wx.Frame.SetFocus(self.quit_window)
 	
 	def quit_lost_focus(self, event):
 		self.quit_window.SetFocus()
@@ -325,7 +346,9 @@ class NewFrame(wx.Frame):
 			if ( tp == 200 ): break # Max transparency
 			
 		self.Bind(wx.EVT_CHAR_HOOK, self.key_stroke_callback)	
-
+		# self.Bind(wx.EVT_CLOSE, self.hide_frame)
+		
+		
 		w, h = width*0.3, 30
 		bmp = wx.EmptyBitmap(w, h)
 		dc = wx.MemoryDC()
@@ -368,12 +391,20 @@ class NewFrame(wx.Frame):
 	def input(self):
 		print 'Input has been given.'
 
+	def suicide(self, event):
+		self.Hide()
+	
+	def hide_frame(self):
+		self.Hide()
+	
+	def ignore_event(self, event):
+		pass 
 	
 class Main(wx.App):
    
     def __init__(self):
 		wx.App.__init__(self)
-		dlg = MainFrame(True)
+		dlg = MainFrame()
 		dlg.Show()
 
 if __name__ == "__main__":
