@@ -1,13 +1,13 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
-import time
 import socket
 import threading as thr
+import time
 from datetime import datetime
 
-from FIPER.host.interfaces import CarInterface, ClientInterface
-from FIPER.host.streamhandler import StreamDisplayer
 from FIPER.generic import *
+from FIPER.host.streamhandler import StreamDisplayer
+from FIPER.generic.interfaces import CarInterface, ClientInterface
 
 
 class Console(thr.Thread):
@@ -147,12 +147,6 @@ class Listener(thr.Thread):
             print("LISTENER: invalid introduction!")
             return False
 
-        def valid_entity_type(et):
-            if et in ("client", "car"):
-                return True
-            print("LISTENER: unknown entity type:", entity_type)
-            return False
-
         def valid_frame_shape(fs):
             if len(fs) < 2 or len(fs) > 3:
                 errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
@@ -196,11 +190,12 @@ class Listener(thr.Thread):
             self.master.cars[ID] = CarInterface(
                 ID, self.dsocket, messenger, frameshape
             )
-        else:
-
+        elif entity_type == "client":
             self.master.clients[ID] = ClientInterface(
                 ID, self.dsocket, messenger
             )
+        else:
+            raise RuntimeError("Unknown entity type: " + entity_type)
 
     def teardown(self):
         self.running = False

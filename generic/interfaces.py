@@ -5,7 +5,7 @@ import threading as thr
 
 import numpy as np
 
-from FIPER.generic import *
+from . import DTYPE
 
 
 class NetworkEntity(object):
@@ -132,11 +132,16 @@ class ClientCarInterface(object):
         self.controlling = False
 
     def forward_stream(self):
-        self.stream_worker= thr.Thread(target=self._forward_job)
+        self.stream_worker = thr.Thread(target=self._forward_stream)
         self.streaming = True
         self.stream_worker.start()
 
-    def _forward_job(self):
+    def forward_rc(self):
+        self.rc_worker = thr.Thread(target=self._forward_rc)
+        self.controlling = True
+        self.rc_worker.start()
+
+    def _forward_stream(self):
         stream = self.carifc.bytestream()
         for byte in stream:
             self.cliifc.dsocket.send(byte)
