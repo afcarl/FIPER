@@ -66,24 +66,26 @@ class CarInterface(NetworkEntity):
         self.out("Framesize:", frameshape)
 
     def bytestream(self):
+        """
+        Simple generator yielding raw bytes from the data socket
+        """
         yield self.dsocket.recv(1024)
 
-    def framestream(self, fps=60):
+    def framestream(self):
         """Generator function that yields the received video frames"""
         datalen = np.prod(self.frameshape)
         data = b""
-        framebuffer = []
         while 1:
             while len(data) < datalen:
                 data += self.dsocket.recv(1024)
-            framebuffer.append(np.fromstring(data[:datalen], dtype=DTYPE).reshape(self.frameshape))
             # Car RPM data is not yet transmitted.
             # It is intended to be the last [n] byte of <data>
 
             # time.sleep(1. / fps)  # set FPS -> this is not right
             # we need timestamps for the frames.
+
             # # # # FRAME PREPROCESSING SHOULD BE DONE HERE # # # #
-            yield framebuffer.pop(0)
+            yield np.fromstring(data[:datalen], dtype=DTYPE).reshape(self.frameshape)
             # #####################################################
             data = data[datalen:]
 
@@ -108,21 +110,44 @@ class ClientInterface(NetworkEntity):
         self.target_carinterface = None
         self.streaming = False
 
-    def forward_to(self, carinterface):
-        self.target_carinterface = carinterface
-        self.worker = thr.Thread(target=self._forward_stream)
-        self.streaming = True
-        self.worker.start()
-
-    def _forward_stream(self):
-        stream = self.target_carinterface.bytestream()
-        for byts in stream:
-            self.dsocket.send(byts)
-            if not self.streaming:
-                break
-
     def teardown(self, sleep=3):
         self.streaming = False
         super(ClientInterface, self).teardown(sleep)
         self.worker = None
         self.out("Teardown finished!")
+
+
+class ClientCarInterface(object):
+
+    """
+    Abstraction of a server-level Client-Car connection
+    """
+
+    def __init__(self, carifc, cliifc):
+        self.carifc = carifc
+        self.cliifc = cliifc
+        self.stream_worker = None
+        self.rc_worker = None
+        self.streaming = False
+        self.controlling = False
+
+    def forward_stream(self):
+        self.stream_worker= thr.Thread(target=self._forward_job)
+        self.streaming = True
+        self.stream_worker.start()
+
+    def _forward_job(self):
+        stream = self.carifc.bytestream()
+        for byte in stream:
+            self.cliifc.dsocket.send(byte)
+            if not self.streaming:
+                break
+        self.streaming = False
+
+    def _forward_rc(self):
+        stream = self.cliifc.bytestream()
+        for byts in stream:
+            self.carifc.rcocket.send(byts)
+            if not self.controlling:
+                break
+        self.controlling = False

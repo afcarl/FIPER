@@ -95,8 +95,11 @@ class Listener(thr.Thread):
     def __init__(self, master):
         if Listener.instances > 0:
             raise RuntimeError("The Singleton [Listener] is already instantiated!")
-        thr.Thread.__init__(self, name="Server-Listener".format(Listener.instances))
+        thr.Thread.__init__(self, name="Server-Listener")
+
         self.master = master  # type: FleetHandler
+        self._set_up_listener_sockets()
+        self.running = False
 
         Listener.instances += 1
 
@@ -109,16 +112,25 @@ class Listener(thr.Thread):
         finally:
             self.teardown()
 
+    def _set_up_listener_sockets(self):
+        self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.msocket.settimeout(3)
+        self.msocket.bind((self.master.ip, MESSAGE_SERVER_PORT))
+        self.msocket.listen(1)
+        # Socket for receiving data connections
+        self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.dsocket.bind((self.master.ip, STREAM_SERVER_PORT))
+        self.dsocket.listen(1)
+
     def _set_server_flags_to_running_mode(self):
-        self.master.running = True
+        self.running = True
         self.master.status = "Listening"
         print("\nLISTENER: Server awaiting connections...\n".format(self.name))
-        self.master.msocket.listen(1)
 
     def _main_loop_listening_for_connections(self):
-        while self.master.running:
+        while self.running:
             try:
-                conn, (ip, port) = self.master.msocket.accept()
+                conn, (ip, port) = self.msocket.accept()
             except socket.timeout:
                 time.sleep(1)
             else:
@@ -173,25 +185,32 @@ class Listener(thr.Thread):
             print("LISTENER: got introduction:", introduction)
         if not valid_introduction(introduction):
             return
-
         result = parse_introductory_string(introduction)
+        entity_type, ID = result[:2]
         if not result:
             return
-        entity_type, ID, frameshape = result
-        if not all((valid_entity_type(entity_type),
-                    valid_frame_shape(frameshape))):
-            return
         if entity_type == "car":
+            frameshape = result[2]
+            if not valid_frame_shape(frameshape):
+                return
             self.master.cars[ID] = CarInterface(
-                ID, self.master.dsocket, messenger, frameshape
+                ID, self.dsocket, messenger, frameshape
             )
         else:
+
             self.master.clients[ID] = ClientInterface(
-                ID, self.master.dsocket, messenger
+                ID, self.dsocket, messenger
             )
+
+    def teardown(self):
+        self.running = False
+        time.sleep(2)
+        self.msocket.close()
+        self.dsocket.close()
 
     def __del__(self):
         self.teardown()
+        Listener.instances -= 1
 
 
 # noinspection PyUnusedLocal
@@ -219,14 +238,6 @@ class FleetHandler(object):
         self.since = datetime.now()
 
         # Socket for receiving message connections
-        self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.msocket.settimeout(3)
-        self.msocket.bind((ip, MESSAGE_SERVER_PORT))
-        # Socket for receiving data connections
-        self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.dsocket.bind((ip, STREAM_SERVER_PORT))
-        self.dsocket.listen(1)
-
         print("SERVER: sockets are bound to {}:{}/{}"
               .format(ip, MESSAGE_SERVER_PORT, STREAM_SERVER_PORT))
 
