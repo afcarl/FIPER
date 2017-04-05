@@ -97,6 +97,11 @@ class Listener(thr.Thread):
             raise RuntimeError("The Singleton [Listener] is already instantiated!")
         thr.Thread.__init__(self, name="Server-Listener")
 
+        # These are sockets, listening for inbound connections
+        self.msocket = None  # message channel
+        self.dsocket = None  # data channel
+        self.rcsocket = None  # remote control
+
         self.master = master  # type: FleetHandler
         self._set_up_listener_sockets()
         self.running = False
@@ -113,14 +118,21 @@ class Listener(thr.Thread):
             self.teardown()
 
     def _set_up_listener_sockets(self):
-        self.msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.msocket, self.dsocket, self.rcsocket = [
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            for _ in range(3)]
+
         self.msocket.settimeout(3)
+        self.rcsocket.settimeout(1)
+        # Socket listening for connections on the message channel
         self.msocket.bind((self.master.ip, MESSAGE_SERVER_PORT))
         self.msocket.listen(1)
         # Socket for receiving data connections
-        self.dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.dsocket.bind((self.master.ip, STREAM_SERVER_PORT))
         self.dsocket.listen(1)
+        # Socket for receiving remote control connections
+        self.rcsocket.bind((self.master.ip, RC_SERVER_PORT))
+        self.rcsocket.listen(1)
 
     def _set_server_flags_to_running_mode(self):
         self.running = True
@@ -188,7 +200,7 @@ class Listener(thr.Thread):
             if not valid_frame_shape(frameshape):
                 return
             self.master.cars[ID] = CarInterface(
-                ID, self.dsocket, messenger, frameshape
+                ID, self.dsocket, self.rcsocket, messenger, frameshape
             )
         elif entity_type == "client":
             self.master.clients[ID] = ClientInterface(

@@ -15,7 +15,7 @@ class NetworkEntity(object):
     (like a car or a client).
     
     Groups together the following concepts:
-    - a message-passing TCP channel implemented in by generic.messaging
+    - a message-passing TCP channel implemented in generic.messaging
     - a one-way data connection, used to read or forward a data stream
     """
 
@@ -59,11 +59,20 @@ class CarInterface(NetworkEntity):
 
     entity_type = "car"
 
-    def __init__(self, ID, dlistener, messenger, frameshape):
-        super(CarInterface, self).__init__(ID, dlistener, messenger)
+    def __init__(self, ID, dlistener, rclistener, messenger, frameshape):
+        """
+        
+        :param ID: the ID of the remote car 
+        :param dlistener: serving TCP socket on STREAM_SERVER_PORT
+        :param messenger: a Messaging instance (see generic.messaging)
+        :param frameshape: string descriping the video frame shape: {}x{}x{}
+        """
 
+        super(CarInterface, self).__init__(ID, dlistener, messenger)
         self.frameshape = tuple(int(fs) for fs in frameshape.split("x"))
         self.out("Framesize:", frameshape)
+        self.rcsocket, addr = rclistener.accept()
+        self.out("RC connection established with {}:{}".format(*addr))
 
     def bytestream(self):
         """
@@ -99,7 +108,8 @@ class ClientInterface(NetworkEntity):
     """
     Abstraction of a Client-Server connection.
     Groups together two concepts:
-    
+    - the message connection, implemented by a Messaging object
+    - TCP or UDP or RTP connection, used to send the A/V stream
     """
 
     entity_type = "client"
@@ -115,6 +125,14 @@ class ClientInterface(NetworkEntity):
         super(ClientInterface, self).teardown(sleep)
         self.worker = None
         self.out("Teardown finished!")
+
+
+class ServerInterface(NetworkEntity):
+
+    entity_type = "server"
+
+    def __init__(self, ID, dlistener, messenger):
+        super(ServerInterface, self).__init__(ID, dlistener, messenger)
 
 
 class ClientCarInterface(object):
