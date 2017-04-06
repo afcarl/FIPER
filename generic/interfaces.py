@@ -5,7 +5,67 @@ import threading as thr
 
 import numpy as np
 
-from . import DTYPE
+from . import DTYPE, Messaging
+
+
+def interface_factory(msock, *listeners):
+
+    def valid_introduction(intr):
+        if ":HELLO;" in intr:
+            return True
+        print("LISTENER: invalid introduction!")
+        return False
+
+    def valid_frame_shape(fs):
+        if len(fs) < 2 or len(fs) > 3:
+            errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
+                      "Got {} from {}!".format(ID, frameshape))
+            print(errmsg)
+            return False
+        return True
+
+    def parse_introductory_string(s):
+        """
+        Introduction looks like this:
+        {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
+        """
+
+        s = s.split(":HELLO;")
+        etype, remoteID = s[0].split("-")
+
+        try:
+            shp = [int(sp) for sp in s[1].split("x")]
+        except ValueError:
+            print("LISTENER: Received wrong frameshape definition from {}!\nGot {}"
+                  .format(remoteID, introduction[1]))
+            return None
+        return etype, remoteID, shp
+
+    messenger = Messaging(msock)
+    introduction = None
+    while introduction is None:
+        introduction = messenger.recv(timeout=1)
+        print("LISTENER: got introduction:", introduction)
+    if not valid_introduction(introduction):
+        return
+    result = parse_introductory_string(introduction)
+    entity_type, ID = result[:2]
+    if not result:
+        return
+    if entity_type == "car":
+        frameshape = result[2]
+        if not valid_frame_shape(frameshape):
+            return
+        ifc = CarInterface(
+            ID, listeners[0], listeners[1], messenger, frameshape
+        )
+    elif entity_type == "client":
+        ifc = ClientInterface(
+            ID, listeners[0], messenger
+        )
+    else:
+        raise RuntimeError("Unknown entity type: " + entity_type)
+    return ifc
 
 
 class NetworkEntity(object):

@@ -7,7 +7,8 @@ from datetime import datetime
 
 from FIPER.generic import *
 from FIPER.host.streamhandler import StreamDisplayer
-from FIPER.generic.interfaces import CarInterface, ClientInterface
+from FIPER.generic.interfaces import interface_factory
+from FIPER.generic.abstract import AbstractListener
 
 
 class Console(thr.Thread):
@@ -82,7 +83,7 @@ class Console(thr.Thread):
             self.commands[cmd](*args)
 
 
-class Listener(thr.Thread):
+class Listener(thr.Thread, AbstractListener):
 
     """
     Singleton class!
@@ -95,7 +96,9 @@ class Listener(thr.Thread):
     def __init__(self, master):
         if Listener.instances > 0:
             raise RuntimeError("The Singleton [Listener] is already instantiated!")
+
         thr.Thread.__init__(self, name="Server-Listener")
+        AbstractListener.__init__(self, master.ip, self._coordinate_handshake)
 
         self.master = master  # type: FleetHandler
         self.msocket, self.dsocket, self.rcsocket = [
@@ -108,98 +111,21 @@ class Listener(thr.Thread):
         Listener.instances += 1
 
     def run(self):
-        try:
-            self._set_server_flags_to_running_mode()
-            self._main_loop_listening_for_connections(callback=self._coordinate_handshake)
-        except:
-            raise
-        finally:
-            self.teardown()
+        self._set_server_flags_to_running_mode()
+        AbstractListener.run(self)
 
     def _set_server_flags_to_running_mode(self):
         self.running = True
         print("\nLISTENER: Server awaiting connections...\n".format(self.name))
 
-    def _main_loop_listening_for_connections(self, callback):
-        while self.running:
-            try:
-                conn, (ip, port) = self.msocket.accept()
-            except socket.timeout:
-                pass
-            else:
-                print("\nSERVER: Received connection from {}:{}\n"
-                      .format(ip, port))
-                callback(conn)
-        self.teardown()
-
     def _coordinate_handshake(self, msock):
-
-        def valid_introduction(intr):
-            if ":HELLO;" in intr:
-                return True
-            print("LISTENER: invalid introduction!")
-            return False
-
-        def valid_frame_shape(fs):
-            if len(fs) < 2 or len(fs) > 3:
-                errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
-                          "Got {} from {}!".format(ID, frameshape))
-                print(errmsg)
-                return False
-            return True
-
-        def parse_introductory_string(s):
-            """
-            Introduction looks like this:
-            {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
-            """
-
-            s = s.split(":HELLO;")
-            etype, remoteID = s[0].split("-")
-
-            try:
-                shp = [int(sp) for sp in s[1].split("x")]
-            except ValueError:
-                print("LISTENER: Received wrong frameshape definition from {}!\nGot {}"
-                      .format(remoteID, introduction[1]))
-                return None
-            return etype, remoteID, shp
-
-        messenger = Messaging(msock)
-        introduction = None
-        while introduction is None:
-            introduction = messenger.recv(timeout=1)
-            print("LISTENER: got introduction:", introduction)
-        if not valid_introduction(introduction):
+        ifc = interface_factory(msock)
+        if not ifc:
             return
-        result = parse_introductory_string(introduction)
-        entity_type, ID = result[:2]
-        if not result:
-            return
-        if entity_type == "car":
-            frameshape = result[2]
-            if not valid_frame_shape(frameshape):
-                return
-            self.master.cars[ID] = CarInterface(
-                ID, self.dsocket, self.rcsocket, messenger, frameshape
-            )
-        elif entity_type == "client":
-            self.master.clients[ID] = ClientInterface(
-                ID, self.dsocket, messenger
-            )
+        if ifc.entity_type == "car":
+            self.master.cars[ifc.ID] = ifc
         else:
-            raise RuntimeError("Unknown entity type: " + entity_type)
-
-    def teardown(self):
-        self.running = False
-        time.sleep(2)
-        self.msocket.close()
-        self.dsocket.close()
-        self.rcsocket.close()
-
-    def __del__(self):
-        self.teardown()
-        Listener.instances -= 1
+            self.master.clients[ifc.ID] = ifc
 
 
 # noinspection PyUnusedLocal

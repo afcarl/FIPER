@@ -13,7 +13,9 @@ from FIPER.car.tcp_car import DUMMY_VIDEOFILE
 from FIPER.generic import CaptureDeviceMocker, DTYPE
 
 
-class ComponentBase(object, metaclass=abc.ABCMeta):
+class ComponentBase(object):
+
+    __metaclass__ = abc.ABCMeta
 
     type = ""
 
