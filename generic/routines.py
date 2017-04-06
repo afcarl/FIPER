@@ -1,3 +1,5 @@
+import socket
+
 import numpy as np
 from .const import DTYPE
 
@@ -15,3 +17,12 @@ def my_ip():
     if address is None:
         raise RuntimeError("Unable to determine the local IP address!")
     return address
+
+
+def srvsock(ip, port, timeout=None):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if timeout is not None:
+        s.settimeout(timeout)
+    s.bind((ip, port))
+    s.listen(1)
+    return s

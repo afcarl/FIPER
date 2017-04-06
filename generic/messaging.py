@@ -21,7 +21,6 @@ class Messaging(object):
         self.recvbuffer = []
         self.sendbuffer = []
         self.sock = sock  # type: socket.socket
-        self.sock.settimeout(1)
         self.job_in = thr.Thread(target=self.flow_in)
         self.job_out = thr.Thread(target=self.flow_out)
 

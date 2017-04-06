@@ -1,8 +1,8 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+import time
 import socket
 import threading as thr
-import time
 from datetime import datetime
 
 from FIPER.generic import *
@@ -97,13 +97,12 @@ class Listener(thr.Thread):
             raise RuntimeError("The Singleton [Listener] is already instantiated!")
         thr.Thread.__init__(self, name="Server-Listener")
 
-        # These are sockets, listening for inbound connections
-        self.msocket = None  # message channel
-        self.dsocket = None  # data channel
-        self.rcsocket = None  # remote control
-
         self.master = master  # type: FleetHandler
-        self._set_up_listener_sockets()
+        self.msocket, self.dsocket, self.rcsocket = [
+            srvsock(master.ip, prt, tmt) for prt, tmt in
+            zip((MESSAGE_SERVER_PORT, STREAM_SERVER_PORT, RC_SERVER_PORT),
+                (3, None, 1))
+        ]
         self.running = False
 
         Listener.instances += 1
@@ -111,44 +110,26 @@ class Listener(thr.Thread):
     def run(self):
         try:
             self._set_server_flags_to_running_mode()
-            self._main_loop_listening_for_connections()
+            self._main_loop_listening_for_connections(callback=self._coordinate_handshake)
         except:
             raise
         finally:
             self.teardown()
 
-    def _set_up_listener_sockets(self):
-        self.msocket, self.dsocket, self.rcsocket = [
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            for _ in range(3)]
-
-        self.msocket.settimeout(3)
-        self.rcsocket.settimeout(1)
-        # Socket listening for connections on the message channel
-        self.msocket.bind((self.master.ip, MESSAGE_SERVER_PORT))
-        self.msocket.listen(1)
-        # Socket for receiving data connections
-        self.dsocket.bind((self.master.ip, STREAM_SERVER_PORT))
-        self.dsocket.listen(1)
-        # Socket for receiving remote control connections
-        self.rcsocket.bind((self.master.ip, RC_SERVER_PORT))
-        self.rcsocket.listen(1)
-
     def _set_server_flags_to_running_mode(self):
         self.running = True
-        self.master.status = "Listening"
         print("\nLISTENER: Server awaiting connections...\n".format(self.name))
 
-    def _main_loop_listening_for_connections(self):
+    def _main_loop_listening_for_connections(self, callback):
         while self.running:
             try:
                 conn, (ip, port) = self.msocket.accept()
             except socket.timeout:
-                time.sleep(1)
+                pass
             else:
                 print("\nSERVER: Received connection from {}:{}\n"
                       .format(ip, port))
-                self._coordinate_handshake(conn)
+                callback(conn)
         self.teardown()
 
     def _coordinate_handshake(self, msock):
@@ -214,6 +195,7 @@ class Listener(thr.Thread):
         time.sleep(2)
         self.msocket.close()
         self.dsocket.close()
+        self.rcsocket.close()
 
     def __del__(self):
         self.teardown()
