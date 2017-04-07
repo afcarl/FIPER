@@ -5,11 +5,66 @@ import time
 import socket
 
 # Project imports
+import warnings
+
 from FIPER.generic import Messaging
 from FIPER.generic import MESSAGE_SERVER_PORT, STREAM_SERVER_PORT, RC_SERVER_PORT
 from FIPER.car.components import TCPStreamer, RCReceiver
 
 DUMMY_VIDEOFILE = ""
+
+
+def idle(myip, myID):
+    """
+    Broadcasts the ID of the car if probed.
+    Also returns the IP of a probing server if the server
+    sends a "probing" message.
+
+    :param myip: the ip address of this car 
+    :param myID: a unique string, identifiing this car
+    :return: the ip of the server if the server sends a "connect" message
+    """
+
+    def read_message_from_probe(sck):
+        try:
+            m = sck.recv(1024)
+        except socket.timeout:
+            return
+        else:
+            return m
+
+    def parse_message(m):
+        if (not m) or (m == "probing"):
+            return "probing"
+        elif m == "connect":
+            return m
+        else:
+            warnings.warn("Invalid probe message: " + m)
+
+    def respond_to_probe(sck, ID, ip):
+        m = b"car-{} @ {}".format(ID, ip)
+        sck.sendall(m)
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(1)
+    sock.bind((myip, 1233))
+    while 1:
+        print("CAR-{}: Awaiting connection... Hit Ctrl-C to break!"
+              .format(myID))
+        try:
+            conn, addr = sock.accept()
+        except socket.timeout:
+            pass
+        else:
+            print("NETWORKTAG: probed by {}:{}".format(*addr))
+            msg = read_message_from_probe(conn)
+            msg = parse_message(msg)
+            if msg == "connect":
+                return addr[0]
+            elif msg == "probing":
+                respond_to_probe(conn, myID, myip)
+            else:
+                pass
 
 
 class TCPCar(object):
@@ -23,15 +78,16 @@ class TCPCar(object):
 
     entity_type = "car"
 
-    def __init__(self, ID, address, server_ip):
-        self.ID = ID
-        self.ip = address
+    def __init__(self, myID, myIP):
+        self.ID = myID
+        self.ip = myIP
 
         self.streamer = TCPStreamer()
         self.receiver = RCReceiver()
         self.messenger = None  # type: Messaging
         self.live = False
 
+        server_ip = idle(myIP, myID)
         self.connect(server_ip)
 
     def connect(self, server_ip):

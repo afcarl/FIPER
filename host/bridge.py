@@ -1,14 +1,12 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
 import time
-import socket
 import threading as thr
 from datetime import datetime
 
-from FIPER.generic import *
-from FIPER.host.streamhandler import StreamDisplayer
+from FIPER.generic.routines import srvsock
 from FIPER.generic.interfaces import interface_factory
-from FIPER.generic.abstract import AbstractListener
+from FIPER.generic.abstract import AbstractListener, StreamDisplayer
 
 
 class Console(thr.Thread):
@@ -83,12 +81,11 @@ class Console(thr.Thread):
             self.commands[cmd](*args)
 
 
-class Listener(thr.Thread, AbstractListener):
+class Listener(AbstractListener):
 
     """
     Singleton class!
     Listens for incoming car connections for the server.
-    Coordinates the creation of CarInterface objects.
     """
 
     instances = 0
@@ -97,29 +94,39 @@ class Listener(thr.Thread, AbstractListener):
         if Listener.instances > 0:
             raise RuntimeError("The Singleton [Listener] is already instantiated!")
 
-        thr.Thread.__init__(self, name="Server-Listener")
         AbstractListener.__init__(self, master.ip, self._coordinate_handshake)
 
         self.master = master  # type: FleetHandler
         self.msocket, self.dsocket, self.rcsocket = [
-            srvsock(master.ip, prt, tmt) for prt, tmt in
-            zip((MESSAGE_SERVER_PORT, STREAM_SERVER_PORT, RC_SERVER_PORT),
-                (3, None, 1))
+            srvsock(master.ip, typ, tmt) for typ, tmt in zip("msr", (3, None, 1))
         ]
-        self.running = False
+        self.worker = None
 
         Listener.instances += 1
 
-    def run(self):
-        self._set_server_flags_to_running_mode()
-        AbstractListener.run(self)
+    def start(self):
+        """
+        Creates a new worker thread in case Listener needs to be
+        restarted.
+        self.run is inherited from AbstractListener
+        """
+        if self.worker is not None:
+            print("{}-Attempted start while already running!")
+            return
+        self.worker = thr.Thread(target=self.run, name="Server-Listener")
+        self.worker.start()
 
-    def _set_server_flags_to_running_mode(self):
-        self.running = True
-        print("\nLISTENER: Server awaiting connections...\n".format(self.name))
+    def teardown(self, sleep=2):
+        super(Listener, self).teardown(sleep)
+        self.worker = None
 
     def _coordinate_handshake(self, msock):
-        ifc = interface_factory(msock)
+        """
+        Builds an interface and puts it into the server's appropriate
+        container for later usage.
+        :param msock: connected socket used for message connection
+        """
+        ifc = interface_factory(msock, self.dsocket, self.rcsocket)
         if not ifc:
             return
         if ifc.entity_type == "car":
@@ -151,10 +158,6 @@ class FleetHandler(object):
         self.cars = {}
         self.watchers = {}
         self.since = datetime.now()
-
-        # Socket for receiving message connections
-        print("SERVER: sockets are bound to {}:{}/{}"
-              .format(ip, MESSAGE_SERVER_PORT, STREAM_SERVER_PORT))
 
         self.listener = Listener(self)
         self.console = Console(self)

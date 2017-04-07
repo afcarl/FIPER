@@ -8,7 +8,20 @@ import numpy as np
 from . import DTYPE, Messaging
 
 
-def interface_factory(msock, *listeners):
+def interface_factory(msock, dsock, rcsock=None):
+
+    """
+    Coordinates the handshake between a network entity
+    (a Car or Client) and a listener server.
+    This abstraction is required because either a central
+    server (FleetHandler, see host/bridge.py) or a
+    standalone client (DirectConnection, see client/direct.py
+    has to be able to control a remote car on the network.
+    
+    :param msock: connected socket, connected to a remote car
+    :param dsock: unconnected server socket awaiting data connections
+    :param rcsock: unconnected server socket awaiting RC connections
+    """
 
     def valid_introduction(intr):
         if ":HELLO;" in intr:
@@ -56,12 +69,14 @@ def interface_factory(msock, *listeners):
         frameshape = result[2]
         if not valid_frame_shape(frameshape):
             return
+        if rcsock is None:
+            print("INTERFACE: no rcsocket provided :(")
         ifc = CarInterface(
-            ID, listeners[0], listeners[1], messenger, frameshape
+            ID, dsock, rcsock, messenger, frameshape
         )
     elif entity_type == "client":
         ifc = ClientInterface(
-            ID, listeners[0], messenger
+            ID, dsock, messenger
         )
     else:
         raise RuntimeError("Unknown entity type: " + entity_type)
