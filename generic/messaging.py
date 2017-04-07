@@ -1,8 +1,11 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+import abc
 import socket
 import time
 import threading as thr
+
+from generic import CAR_PROBE_PORT
 
 
 class Messaging(object):
@@ -120,3 +123,92 @@ class Messaging(object):
     def __del__(self):
         if self.running:
             self.teardown()
+
+
+class Probe(object):
+    """
+    Mixin class for entities with probing capabilities.
+    """
+
+    __metaclass__ = abc.ABCMeta
+
+    @staticmethod
+    def validate_car_tag(tag, address=None):
+        tag = unicode(tag)
+        print("TAG-VALIDATING:", tag)
+        if " @ " not in tag:
+            return
+        IDs, remote_addr = tag.split(" @ ")
+        if address is not None:
+            if remote_addr != address:
+                print("INVALID CAR TAG: address invalid:")
+                print("(expected) {} != {} (got)"
+                      .format(address, remote_addr))
+        entity_type, ID = IDs.split("-")
+        if entity_type != "car":
+            print("INVALID CAR TAG: invalid entity type:", entity_type)
+            return
+        return ID
+
+    @staticmethod
+    def _probe(ip, msg):
+        """
+        Probes an IP address with a given message.
+        This causes the remote car to send back its
+        tag, which is validated, then the car ID is
+        extracted from it and returned.
+        """
+
+        assert unicode(msg) in ("connect", "probing"), "Invalid message!"
+
+        def setup_socket():
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(1)
+            return s
+
+        def create_connection(s):
+            while 1:
+                try:
+                    s.connect((ip, CAR_PROBE_PORT))
+                except socket.timeout:
+                    print("DirectConnection: waiting for remote...")
+                except socket.error:
+                    print("DirectConnection: invalid address: ", ip)
+                    return None
+                else:
+                    return s
+
+        def probe_and_receive_tag(s):
+            s.sendall(msg)
+            for i in range(10):
+                try:
+                    network_tag = s.recv(1024)
+                except socket.timeout:
+                    pass
+                else:
+                    return network_tag
+            else:
+                print("DirectConnection: Couldn't connect to car @", ip)
+                return None
+
+        sock = setup_socket()
+        sock = create_connection(sock)
+        if sock is None:
+            return
+        tag = probe_and_receive_tag(sock)
+        if tag is None:
+            return
+        ID = validate_car_tag(tag, ip)
+        if ID is None:
+            print("DirectConnection: invalid car ID from tag: [{}] @ {}"
+                  .format(tag, ip))
+            return
+        return ID
+
+    @staticmethod
+    def probe(ip):
+        return Probe._probe(ip, b"probing")
+
+    @staticmethod
+    def initiate(ip):
+        return Probe._probe(ip, b"connect")

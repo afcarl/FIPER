@@ -1,24 +1,11 @@
 from __future__ import print_function, unicode_literals, absolute_import
 
 import abc
-import time
 import socket
 import threading as thr
+import time
 
-from . import srvsock
-
-
-# My experiment, do not use yet :)
-# class SingletonMeta(type):
-#
-#     children = []
-#
-#     def __new__(mcs, **kwargs):
-#         if mcs in SingletonMeta.children:
-#             print("SingletonMeta: attempted to instantiate a Singleton again!")
-#             return None
-#         SingletonMeta.children.append(mcs)
-#         return mcs.__new__(mcs, **kwargs)
+from .routines import srvsock
 
 
 class AbstractListener(object):
@@ -81,12 +68,6 @@ class AbstractListener(object):
         print("AL: deconstructed :(")
         if self.running:
             self.teardown(2)
-
-
-class AbstractProbe(object):
-    """
-    Mixin class for entities with probing capabilities.
-    """
 
 
 class StreamDisplayer(thr.Thread):

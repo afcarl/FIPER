@@ -4,10 +4,12 @@ import threading as thr
 import time
 from datetime import datetime
 
-from FIPER.generic.abstract import AbstractListener, StreamDisplayer
 from FIPER.generic.interfaces import interface_factory
 from FIPER.generic.routines import srvsock
-from host.main import debugmain
+from FIPER.generic.abstract import (
+    AbstractListener, StreamDisplayer
+)
+from FIPER.generic.messaging import Probe
 
 
 class Console(thr.Thread):
@@ -39,7 +41,9 @@ class Console(thr.Thread):
             "status": self.master.report,
             "start": self.master.listener.start,
             "message": lambda ID, *msg: self.master.cars[ID].send(
-                b" ".join((w.encode() for w in msg)))
+                b" ".join((w.encode() for w in msg))),
+            "probe": lambda ip: Probe.probe(ip),
+            "connect": lambda ip: self.master.connect_car(ip),
         }
         Console.instances += 1
 
@@ -95,7 +99,7 @@ class Listener(AbstractListener):
         if Listener.instances > 0:
             raise RuntimeError("The Singleton [Listener] is already instantiated!")
 
-        AbstractListener.__init__(self, master.ip, self._coordinate_handshake)
+        AbstractListener.__init__(self, master.ip, self.handshake)
 
         self.master = master  # type: FleetHandler
         self.msocket, self.dsocket, self.rcsocket = [
@@ -121,7 +125,7 @@ class Listener(AbstractListener):
         super(Listener, self).teardown(sleep)
         self.worker = None
 
-    def _coordinate_handshake(self, msock):
+    def handshake(self, msock):
         """
         Builds an interface and puts it into the server's appropriate
         container for later usage.
@@ -153,9 +157,9 @@ class FleetHandler(object):
     and to coordinate the shutdown of the cars on this side, etc.
     """
 
-    def __init__(self, ip):
+    def __init__(self, myIP):
         self.clients = {}
-        self.ip = ip
+        self.ip = myIP
         self.cars = {}
         self.watchers = {}
         self.since = datetime.now()
@@ -165,6 +169,10 @@ class FleetHandler(object):
 
         self.running = False
         self.status = "Idle"
+
+    def connect_car(self, ip):
+        ID = Probe.initiate(ip)
+        # TODO: make this happen!!!
 
     def kill_car(self, ID, *args):
         """
@@ -254,7 +262,3 @@ class FleetHandler(object):
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
         repchain += "Cars online: {}\n".format(len(self.cars))
         print("\n" + repchain + "\n")
-
-
-if __name__ == '__main__':
-    debugmain()

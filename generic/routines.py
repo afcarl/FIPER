@@ -38,21 +38,3 @@ def srvsock(ip, connection, timeout=None):
     s.bind((ip, port))
     s.listen(1)
     return s
-
-
-def validate_car_tag(tag, address=None):
-    tag = unicode(tag)
-    print("TAG-VALIDATING:", tag)
-    if " @ " not in tag:
-        return
-    IDs, remote_addr = tag.split(" @ ")
-    if address is not None:
-        if remote_addr != address:
-            print("INVALID CAR TAG: address invalid:")
-            print("(expected) {} != {} (got)"
-                  .format(address, remote_addr))
-    entity_type, ID = IDs.split("-")
-    if entity_type != "car":
-        print("INVALID CAR TAG: invalid entity type:", entity_type)
-        return
-    return ID
