@@ -89,34 +89,25 @@ class TCPStreamer(ComponentBase):
 
     def __init__(self):
         super(TCPStreamer, self).__init__()
-        self.eye = None
         self._frameshape = None
-        self._setup_capture_device()
+        self.eye = Eye()
         self._determine_frame_shape()
 
     @property
     def frameshape(self):
         return str(self._frameshape)[1:-1].replace(", ", "x")
 
-    # noinspection PyArgumentList
-    def _setup_capture_device(self):
-        if not DUMMY_VIDEOFILE:
-            self.eye = cv2.VideoCapture(0)
-        elif not os.path.exists(DUMMY_VIDEOFILE):
-            self.eye = CaptureDeviceMocker
-        else:
-            self.eye = cv2.VideoCapture(DUMMY_VIDEOFILE)
-
     def _determine_frame_shape(self):
         success, frame = self.eye.read()
         if not success:
             success, frame = self._fall_back_to_white_noise_stream()
         self._frameshape = frame.shape
+        self.eye.close()
 
     def _fall_back_to_white_noise_stream(self):
         warnings.warn("Capture device unreachable, falling back to white noise stream!",
                       RuntimeWarning)
-        self.eye = CaptureDeviceMocker
+        self.eye = Eye(CaptureDeviceMocker)
         return self.eye.read()
 
     def frame(self):
@@ -130,6 +121,7 @@ class TCPStreamer(ComponentBase):
         """
         pushed = 0
         self.running = True
+        self.eye.open()
         while self.running:
             success, frame = self.frame()
             ##########################################
@@ -140,4 +132,34 @@ class TCPStreamer(ComponentBase):
                 self.sock.send(slc)
             pushed += 1
             print("\rPushed {:>3} frames".format(pushed), end="")
+        self.eye.close()
         print("TCPStreamer: Stream terminated!")
+
+
+class Eye(object):
+
+    # noinspection PyArgumentList
+    def __init__(self, dev=None):
+        if dev is None:
+            if not DUMMY_VIDEOFILE:
+                self.device = lambda: cv2.VideoCapture(0)
+            elif not os.path.exists(DUMMY_VIDEOFILE):
+                self.device = CaptureDeviceMocker
+            else:
+                self.device = lambda: cv2.VideoCapture(DUMMY_VIDEOFILE)
+        else:
+            self.device = dev
+
+        self._eye = None
+
+    def open(self):
+        self._eye = self.device()
+
+    def read(self):
+        if self._eye is None:
+            self.open()
+        return self._eye.read()
+
+    def close(self):
+        self._eye.release()
+        self._eye = None
