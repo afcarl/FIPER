@@ -9,8 +9,9 @@ import threading as thr
 
 import cv2
 
-from FIPER.car.tcp_car import DUMMY_VIDEOFILE
 from FIPER.generic import CaptureDeviceMocker, DTYPE
+
+DUMMY_VIDEOFILE = ""
 
 
 class ComponentBase(object):

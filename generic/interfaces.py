@@ -1,6 +1,6 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
-import time
+import socket
 import threading as thr
 
 import numpy as np
@@ -46,21 +46,25 @@ def interface_factory(msock, dsock, rcsock=None):
         s = s.split(":HELLO;")
         etype, remoteID = s[0].split("-")
 
-        try:
-            shp = [int(sp) for sp in s[1].split("x")]
-        except ValueError:
-            print("LISTENER: Received wrong frameshape definition from {}!\nGot {}"
-                  .format(remoteID, introduction[1]))
-            return None
+        if etype == "car":
+            try:
+                shp = [int(sp) for sp in s[1].split("x")]
+            except ValueError:
+                print("LISTENER: Received wrong frameshape definition from {}!\nGot {}"
+                      .format(remoteID, introduction[1]))
+                return None
+        else:
+            shp = None
         return etype, remoteID, shp
 
     messenger = Messaging(msock)
     introduction = None
     while introduction is None:
         introduction = messenger.recv(timeout=1)
-        print("LISTENER: got introduction:", introduction)
+        print("IFC_FACTORY: got introduction:", introduction)
     if not valid_introduction(introduction):
         return
+    messenger.send(b"HELLO")
     result = parse_introductory_string(introduction)
     entity_type, ID = result[:2]
     if not result:
@@ -101,7 +105,6 @@ class NetworkEntity(object):
         self.messenger = messenger
         self.send = messenger.send
         self.recv = messenger.recv
-        time.sleep(1)
         conn, addr = dlistener.accept()
         self.out("Data connection established with {} @ {}:{}"
                  .format(self.entity_type, *addr))
@@ -136,7 +139,6 @@ class CarInterface(NetworkEntity):
 
     def __init__(self, ID, dlistener, rclistener, messenger, frameshape):
         """
-        
         :param ID: the ID of the remote car 
         :param dlistener: serving TCP socket on STREAM_SERVER_PORT
         :param messenger: a Messaging instance (see generic.messaging)
@@ -144,10 +146,15 @@ class CarInterface(NetworkEntity):
         """
 
         super(CarInterface, self).__init__(ID, dlistener, messenger)
-        self.frameshape = tuple(int(fs) for fs in frameshape.split("x"))
-        self.out("Framesize:", frameshape)
-        self.rcsocket, addr = rclistener.accept()
-        self.out("RC connection established with {}:{}".format(*addr))
+        self.out("Frameshape:", frameshape)
+        self.frameshape = frameshape
+        try:
+            self.rcsocket, addr = rclistener.accept()
+        except socket.timeout:
+            print("IFC-{}: didn't receive request on RC socket"
+                  .format(ID))
+        else:
+            self.out("RC connection established with {} @ {}:{}".format(ID, *addr))
 
     def bytestream(self):
         """
@@ -156,7 +163,9 @@ class CarInterface(NetworkEntity):
         yield self.dsocket.recv(1024)
 
     def framestream(self):
-        """Generator function that yields the received video frames"""
+        """
+        Generator function that yields the received video frames
+        """
         datalen = np.prod(self.frameshape)
         data = b""
         while 1:
@@ -190,6 +199,11 @@ class ClientInterface(NetworkEntity):
     entity_type = "client"
 
     def __init__(self, ID, dlistener, messenger):
+        """
+        :param ID: the client's unique ID
+        :param dlistener: serving TCP socket on STREAM_SERVER_PORT
+        :param messenger: Messaging object
+        """
         super(ClientInterface, self).__init__(ID, dlistener, messenger)
         self.worker = None
         self.target_carinterface = None
@@ -204,6 +218,10 @@ class ClientInterface(NetworkEntity):
 
 class ServerInterface(NetworkEntity):
 
+    """
+    TBD...
+    """
+
     entity_type = "server"
 
     def __init__(self, ID, dlistener, messenger):
@@ -213,8 +231,10 @@ class ServerInterface(NetworkEntity):
 class ClientCarInterface(object):
 
     """
-    Abstraction of a server-level Client-Car connection
+    Abstraction of a server-level Client-Car connection.
     """
+
+    # TODO: dev currently halted, client has priority.
 
     def __init__(self, carifc, cliifc):
         self.carifc = carifc

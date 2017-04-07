@@ -42,6 +42,7 @@ def srvsock(ip, connection, timeout=None):
 
 def validate_car_tag(tag, address=None):
     tag = unicode(tag)
+    print("TAG-VALIDATING:", tag)
     if " @ " not in tag:
         return
     IDs, remote_addr = tag.split(" @ ")

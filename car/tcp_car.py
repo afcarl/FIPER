@@ -7,11 +7,13 @@ import socket
 # Project imports
 import warnings
 
-from FIPER.generic import Messaging
-from FIPER.generic import MESSAGE_SERVER_PORT, STREAM_SERVER_PORT, RC_SERVER_PORT
 from FIPER.car.components import TCPStreamer, RCReceiver
 
-DUMMY_VIDEOFILE = ""
+from FIPER.generic import Messaging
+from FIPER.generic import (
+    MESSAGE_SERVER_PORT, STREAM_SERVER_PORT,
+    RC_SERVER_PORT, CAR_PROBE_PORT
+)
 
 
 def idle(myip, myID):
@@ -25,6 +27,13 @@ def idle(myip, myID):
     :return: the ip of the server if the server sends a "connect" message
     """
 
+    def setup_socket():
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        sock.bind((myip, CAR_PROBE_PORT))
+        sock.listen(1)
+        return sock
+
     def read_message_from_probe(sck):
         try:
             m = sck.recv(1024)
@@ -34,6 +43,7 @@ def idle(myip, myID):
             return m
 
     def parse_message(m):
+        m = unicode(m)
         if (not m) or (m == "probing"):
             return "probing"
         elif m == "connect":
@@ -45,26 +55,26 @@ def idle(myip, myID):
         m = b"car-{} @ {}".format(ID, ip)
         sck.sendall(m)
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(1)
-    sock.bind((myip, 1233))
+    probe_receiver_socket = setup_socket()
+    print("CAR-{}: Awaiting connection... Hit Ctrl-C to break!"
+          .format(myID))
     while 1:
-        print("CAR-{}: Awaiting connection... Hit Ctrl-C to break!"
-              .format(myID))
         try:
-            conn, addr = sock.accept()
+            conn, addr = probe_receiver_socket.accept()
         except socket.timeout:
             pass
         else:
             print("NETWORKTAG: probed by {}:{}".format(*addr))
             msg = read_message_from_probe(conn)
             msg = parse_message(msg)
+            print("NETWORKTAG: got msg:", msg)
             if msg == "connect":
+                respond_to_probe(conn, myID, myip)
                 return addr[0]
             elif msg == "probing":
                 respond_to_probe(conn, myID, myip)
             else:
-                pass
+                print("NETWORKTAG: invalid message received! Ignoring...")
 
 
 class TCPCar(object):
@@ -124,7 +134,7 @@ class TCPCar(object):
         setup_message_connection()
         perform_handshake()
         setup_data_connection()
-        # setup_rc_connection()
+        setup_rc_connection()
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""

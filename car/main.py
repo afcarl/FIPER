@@ -16,17 +16,14 @@ def readargs():
 
     pleading = "Please supply "
     question = ["the local IP address of this Car",
-                "the remote IP address for the server",
                 "a unique ID for this Car"]
     return [raw_input(pleading + q + " > ") for q in question]
 
 
 def debugmain():
     ID = "TestCar" if len(sys.argv) == 1 else sys.argv[1]
-    lightning_mcqueen = TCPCar(myID=ID, myIP="127.0.0.1", server_ip="127.0.0.1")
+    lightning_mcqueen = TCPCar(myID=ID, myIP="127.0.0.1")
     lightning_mcqueen.mainloop()
-
-    print("OUTSIDE: Car was shut down nicely.")
 
 
 def main():
@@ -34,8 +31,7 @@ def main():
     lightning_mcqueen = TCPCar(myID=carID, myIP=localIP)
     lightning_mcqueen.mainloop()
 
-    print("OUTSIDE: Car was shut down nicely.")
-
 
 if __name__ == '__main__':
     debugmain()
+    print(" -- END PROGRAM --")

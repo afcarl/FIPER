@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals, absolute_import
 
+import abc
 import time
 import socket
 import threading as thr
@@ -22,11 +23,20 @@ from . import srvsock
 
 class AbstractListener(object):
     """
-    Base class for an entity which acts like a server,
+    Abstract base class for an entity which acts like a server,
     eg. client in DirectConnection and FleetHandler server.
     """
 
+    __metaclass__ = abc.ABCMeta
+
     def __init__(self, myIP, callback_on_connection):
+        """
+        Listens for entities on the local network.
+        Incomming connections produce a connected socket,
+        on which callback_on_connection is called, so
+        callback_on_connection's signature should look like so:
+        callback(msock), where msock will be the connected socket.
+        """
         self.msocket = srvsock(myIP, "messaging", timeout=3)
         self.dsocket = srvsock(myIP, "stream")
         self.rcsocket = srvsock(myIP, "rc", timeout=1)
@@ -34,6 +44,9 @@ class AbstractListener(object):
         self.callback = callback_on_connection
 
     def run(self):
+        """
+        Managed run, mainly intended to use in a separate thread
+        """
         try:
             self.mainloop()
         except:
@@ -42,18 +55,22 @@ class AbstractListener(object):
             self.teardown()
 
     def mainloop(self):
+        """
+        Unmanaged run for e.g. one-time connection bootstrapping
+        """
+        self.running = True
         while self.running:
             try:
                 conn, addr = self.msocket.accept()
             except socket.timeout:
-                pass
+                print("ABS_LISTENER: timeout!")
             else:
-                print("\nABS_LISTENER: Received connection from {}:{}\n"
+                print("ABS_LISTENER: Received connection from {}:{}"
                       .format(*addr))
                 self.callback(conn)
-        self.teardown()
 
     def teardown(self, sleep=2):
+        print("AL: teardown")
         self.running = False
         time.sleep(sleep)
         self.msocket.close()
@@ -61,8 +78,15 @@ class AbstractListener(object):
         self.rcsocket.close()
 
     def __del__(self):
+        print("AL: deconstructed :(")
         if self.running:
             self.teardown(2)
+
+
+class AbstractProbe(object):
+    """
+    Mixin class for entities with probing capabilities.
+    """
 
 
 class StreamDisplayer(thr.Thread):
@@ -86,6 +110,9 @@ class StreamDisplayer(thr.Thread):
         self.start()
 
     def run(self):
+        """
+        Displays the remote car's stream with cv2.imshow()
+        """
         import cv2
         stream = self.interface.framestream()
         for i, pic in enumerate(stream, start=1):

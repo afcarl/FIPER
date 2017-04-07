@@ -1,12 +1,13 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
-import time
 import threading as thr
+import time
 from datetime import datetime
 
-from FIPER.generic.routines import srvsock
-from FIPER.generic.interfaces import interface_factory
 from FIPER.generic.abstract import AbstractListener, StreamDisplayer
+from FIPER.generic.interfaces import interface_factory
+from FIPER.generic.routines import srvsock
+from host.main import debugmain
 
 
 class Console(thr.Thread):
@@ -253,47 +254,6 @@ class FleetHandler(object):
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
         repchain += "Cars online: {}\n".format(len(self.cars))
         print("\n" + repchain + "\n")
-
-
-def readargs():
-    pleading = "Please supply "
-    question = ["the local IP address of this server"]
-    return [raw_input(pleading + q + " > ") for q in question][0]
-
-
-def debugmain():
-    """Launches the server on localhost"""
-    server = FleetHandler("127.0.0.1")
-    try:
-        server.listener.start()
-        server.console.run()
-    except Exception as E:
-        print("OUTSIDE: exception occured:", E.message)
-        server.shutdown("Exception occured: {}\nShutting down!".format(E.message))
-
-    time.sleep(3)
-    print("OUTSIDE: Exiting...")
-
-
-def main():
-    """Does the argparse and launches a server"""
-    import sys
-
-    if len(sys.argv) == 2:
-        serverIP = sys.argv[1]
-    else:
-        serverIP = readargs()
-
-    server = FleetHandler(serverIP)
-    try:
-        server.console.run()
-    except Exception as E:
-        print("OUTSIDE: exception occured:", E.message)
-    finally:
-        server.shutdown()
-
-    time.sleep(3)
-    print("OUTSIDE: Exiting...")
 
 
 if __name__ == '__main__':

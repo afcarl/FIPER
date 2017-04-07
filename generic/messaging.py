@@ -56,6 +56,9 @@ class Messaging(object):
                     slc = self.sock.recv(1024)
                 except socket.timeout:
                     pass
+                # except socket.error as E:
+                #     print("MESSENGER: caught socket exception:", E.message)
+                #     self.running = False
                 else:
                     data += slc
             if not self.running:
