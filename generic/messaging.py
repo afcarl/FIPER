@@ -24,6 +24,11 @@ class Messaging(object):
         self.job_in = thr.Thread(target=self.flow_in)
         self.job_out = thr.Thread(target=self.flow_out)
 
+        if self.sock.gettimeout() <= 0:
+            print("MESSENGER: socket received has timeout:", self.sock.gettimeout())
+            print("MESSENGER: setting it to 1")
+            self.sock.settimeout(1)
+
         self.running = True
         self.job_in.start()
         self.job_out.start()
@@ -113,4 +118,5 @@ class Messaging(object):
         print("Messenger OUT!")
 
     def __del__(self):
-        self.teardown()
+        if self.running:
+            self.teardown()

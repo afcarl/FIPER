@@ -129,6 +129,8 @@ class DirectConnection(AbstractListener):
             self.stop_stream()
         if self.interface is not None:
             self.interface.send("shutdown")
+            time.sleep(1)
+            self.interface.teardown()
         super(DirectConnection, self).teardown(sleep)
 
 
@@ -144,7 +146,7 @@ if __name__ == '__main__':
     dc.connect(LH)
     dc.display_stream()
     while 1:
-        v = input("> ")
+        v = unicode(raw_input("> "))
         if v == "quit":
             dc.stop_stream()
             dc.teardown(3)
