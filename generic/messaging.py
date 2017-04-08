@@ -1,11 +1,11 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
 import abc
-import socket
 import time
+import socket
 import threading as thr
 
-from generic import CAR_PROBE_PORT
+from FIPER.generic import CAR_PROBE_PORT
 
 
 class Messaging(object):
