@@ -75,6 +75,8 @@ def idle(myip, myID):
                 respond_to_probe(conn, myID, myip)
             else:
                 print("NETWORKTAG: invalid message received! Ignoring...")
+            conn.close()
+            del conn
 
 
 class TCPCar(object):
@@ -145,7 +147,7 @@ class TCPCar(object):
         if msg is not None:
             self.out(msg)
         if self.streamer is not None:
-            self.streamer.running = False
+            self.streamer.teardown(1)
         if self.messenger is not None:
             self.messenger.send("offline")
             time.sleep(1)

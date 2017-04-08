@@ -6,7 +6,6 @@ import socket
 import threading as thr
 
 from FIPER.generic import CAR_PROBE_PORT
-from FIPER.generic.routines import validate
 
 
 class Messaging(object):
@@ -133,11 +132,6 @@ class Probe(object):
 
     __metaclass__ = abc.ABCMeta
 
-    sock = socket.socket()
-    sock.settimeout(1)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-
     @staticmethod
     def validate_car_tag(tag, address=None):
         tag = unicode(tag)
@@ -170,42 +164,42 @@ class Probe(object):
         def create_connection():
             while 1:
                 try:
-                    Probe.sock.connect((ip, CAR_PROBE_PORT))
+                    sock.connect((ip, CAR_PROBE_PORT))
                 except socket.timeout:
-                    print("DirectConnection: waiting for remote...")
+                    print("PROBE: waiting for remote...")
                 except socket.error:
-                    print("DirectConnection: invalid address: ", ip)
                     return 0
                 else:
                     return 1
 
         def probe_and_receive_tag():
-            Probe.sock.sendall(msg)
-            for i in range(10):
+            sock.send(msg)
+            for i in range(5, 0, -1):
                 try:
-                    network_tag = Probe.sock.recv(1024)
+                    network_tag = sock.recv(1024)
                 except socket.timeout:
-                    pass
+                    print("PROBE: no answer {}".format(i))
                 else:
                     return network_tag
             else:
-                print("DirectConnection: Couldn't connect to car @", ip)
+                print("PROBE: timed out on", ip)
                 return None
+
+        sock = socket.socket()
+        sock.settimeout(0.1)
 
         success = create_connection()
         if not success:
-            return
+            return ip, None
         tag = probe_and_receive_tag()
         if tag is None:
-            return
+            return ip, None
         ID = Probe.validate_car_tag(tag, ip)
         if ID is None:
-            print("DirectConnection: invalid car ID from tag: [{}] @ {}"
+            print("PROBE: invalid car ID from tag: [{}] @ {}"
                   .format(tag, ip))
-            return
-        Probe.sock.shutdown(1)
-        Probe.sock.close()
-        return ID
+            return ip, None
+        return ip, ID
 
     @staticmethod
     def probe(*ips):
@@ -214,7 +208,10 @@ class Probe(object):
         If the target is a car, it will return its ID, or None otherwise.
         """
         # Sacred docstring. Please don't touch it. :)
-        responses = [Probe._probe(ip, b"probing") for ip in ips]
+        reparsed = []
+        for ip in ips:
+            reparsed += Probe._reparse_and_validate_ip(ip)
+        responses = [Probe._probe(ip, b"probing") for ip in reparsed]
         return responses[0] if len(responses) == 1 else responses
 
     @staticmethod
@@ -224,5 +221,34 @@ class Probe(object):
         The target car will initiate connection to this server/client.
         """
         # Sacred docstring. Please don't touch it. :)
+        reparsed = []
+        for ip in ips:
+            reparsed += Probe._reparse_and_validate_ip(ip)
         responses = [Probe._probe(ip, b"connect") for ip in ips]
         return responses[0] if len(responses) == 1 else responses
+
+    @staticmethod
+    def _reparse_and_validate_ip(ip):
+        msg = "PROBE: invalid IP!"
+        splip = ip.split(".")
+        if len(splip) != 4:
+            return [None]
+        found_hyphen = 0
+        for i, part in enumerate(splip):
+            if "-" in part:
+                if found_hyphen:
+                    print("PROBE: only one part of the IP can be set to a range!")
+                    return [None]
+                if not all(r.isdigit() for r in part.split("-")):
+                    print(msg, "Found non-digit in range!")
+                    return [None]
+                found_hyphen = i
+            else:
+                if not part.isdigit():
+                    print(msg, "Found non-digit:", part)
+                    return [None]
+        if found_hyphen:
+            start, stop = splip[found_hyphen].split("-")
+            return [".".join(splip[:found_hyphen] + [str(i)] + splip[found_hyphen+1:])
+                    for i in range(int(start), int(stop))]
+        return [ip]

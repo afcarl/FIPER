@@ -1,12 +1,13 @@
 from __future__ import print_function, unicode_literals, absolute_import
 
+import sys
 import time
 
 from FIPER.generic.interfaces import interface_factory
 from FIPER.generic.abstract import (
     AbstractListener, StreamDisplayer
 )
-from generic import Probe
+from FIPER.generic.messaging import Probe
 
 
 class DirectConnection(AbstractListener):
@@ -76,15 +77,15 @@ class DirectConnection(AbstractListener):
 
 
 if __name__ == '__main__':
-    LH = "127.0.0.1"
-    dc = DirectConnection(LH)
+    IP = ("127.0.0.1" if len(sys.argv) == 1 else sys.argv[1])
+    dc = DirectConnection(IP)
     for probe in range(3, -1, -1):
-        remote_ID = dc.probe(LH)
+        remote_ID = Probe.probe(IP)
         print("PROBE-{}: reponse: {}".format(probe, remote_ID))
         time.sleep(3)
         if remote_ID is not None:
             break
-    dc.connect(LH)
+    dc.connect(IP)
     dc.display_stream()
     while 1:
         v = unicode(raw_input("> "))

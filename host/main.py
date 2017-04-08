@@ -11,13 +11,10 @@ def readargs():
 
 def debugmain():
     """Launches the server on localhost"""
+
     server = FleetHandler("127.0.0.1")
-    try:
-        server.listener.start()
-        server.console.run()
-    except Exception as E:
-        print("OUTSIDE: exception occured:", E.message)
-        server.shutdown("Exception occured: {}\nShutting down!".format(E.message))
+    server.listener.start()
+    server.console.run()
 
     time.sleep(3)
     print("OUTSIDE: Exiting...")
@@ -36,12 +33,14 @@ def main():
     try:
         server.console.run()
     except Exception as E:
-        print("OUTSIDE: exception occured:", E.message)
+        print("OUTSIDE: exception caught:", E.message)
+        print("OUTSIDE: shutting down...")
     finally:
         server.shutdown()
 
     time.sleep(3)
     print("OUTSIDE: Exiting...")
+
 
 if __name__ == '__main__':
     debugmain()

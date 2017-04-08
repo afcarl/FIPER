@@ -1,9 +1,10 @@
 from __future__ import print_function, unicode_literals, absolute_import
 
 import abc
-import socket
-import threading as thr
 import time
+import socket
+import subprocess
+import threading as thr
 
 from .routines import srvsock
 
@@ -20,6 +21,7 @@ class Console(object):
     Help can be called on a command, in which case the docstring of
     the appropriate function will be printed.
     """
+
     def __init__(self, master_name, status_tag="", commands_dict={}, **commands):
         """
         
@@ -30,17 +32,20 @@ class Console(object):
         """
         super(Console, self).__init__()
         if not commands and not commands_dict:
-            print("AbstractConsole: no commands specified!")
+            print("ABS_CONSOLE: no command specified!")
         self.master_name = master_name
         self.status_tag = status_tag
         self.commands = {}
         self.commands.update(commands_dict)
         self.commands.update(commands)
+
         if "help" not in self.commands:
             self.commands["help"] = self.help
+        if "clear" not in self.commands:
+            self.commands["clear"] = lambda: subprocess.call("clear", shell=True)
         if "shutdown" not in commands:
             raise RuntimeError("Please provide a shutdown command!")
-        self.running = True
+        self.running = False
 
     def help(self, *args):
         """Who helps the helpers?"""
@@ -50,36 +55,40 @@ class Console(object):
             for arg in args:
                 if arg not in self.commands:
                     print("No such command: [{}]".format(arg))
+                    return
                 else:
-                    print("Docstring for [{}]: {}"
-                          .format(arg, self.commands[arg].__doc__.replace("\n", " ")))
+                    hlp = self.commands[arg].__doc__
+                    if hlp is None:
+                        print("No help for the [{}] command :(".format(arg))
+                    hlp = hlp.replace("\n", " ").replace("\t", " ").strip()
+                    print("Docstring for [{}]: {}".format(arg, hlp))
 
     @property
     def prompt(self):
         return " ".join((self.master_name, ("[{}]".format(self.status_tag)
-                         if self.status_tag else ""), "> "))
+                                            if self.status_tag else ""), "> "))
 
     def run(self):
         """
         Server console main loop (and program main loop)
         """
+        print("CONSOLE: online")
+        self.running = True
         while self.running:
-            cmd, args = self.read_cmd()
+            cmd, args = self._read_cmd()
             if not cmd:
                 continue
             elif cmd == "shutdown":
                 break
             else:
-                try:
-                    self.commands[cmd](*args)
-                except Exception as E:
-                    print("CONSOLE: command [{}] caused an exception: {}"
-                          .format(cmd, E.message))
-                    print("CONSOLE: ignoring commad!")
+                self.commands[cmd](*args)
+                # except Exception as E:
+                #     print("CONSOLE: command [{}] raised: {}"
+                #           .format(cmd, E.message))
         self.commands["shutdown"](*args)
-        print("CONSOLE: exiting")
+        print("CONSOLE: Exiting...")
 
-    def read_cmd(self):
+    def _read_cmd(self):
         c = raw_input(self.prompt).split(" ")
         cmd = c[0].lower()
         if len(c) > 1:
@@ -88,7 +97,7 @@ class Console(object):
             args = ""
         return cmd, args
 
-    def cmd_parser(self, cmd, args):
+    def _cmd_parser(self, cmd, args):
         if cmd[0] not in self.commands:
             print("CONSOLE: Unknown command:", cmd)
         else:
@@ -117,34 +126,24 @@ class AbstractListener(object):
         self.running = False
         self.callback = callback_on_connection
 
-    def run(self):
-        """
-        Managed run, mainly intended to use in a separate thread
-        """
-        try:
-            self.mainloop()
-        except:
-            raise
-        finally:
-            self.teardown()
-
     def mainloop(self):
         """
         Unmanaged run for e.g. one-time connection bootstrapping
         """
+        print("ABS_LISTENER: online")
         self.running = True
         while self.running:
             try:
                 conn, addr = self.msocket.accept()
             except socket.timeout:
-                print("ABS_LISTENER: timeout!")
+                pass
             else:
-                print("ABS_LISTENER: Received connection from {}:{}"
+                print("ABS_LISTENER: received connection from {}:{}"
                       .format(*addr))
                 self.callback(conn)
+        print("ABS_LISTENER: Exiting...")
 
     def teardown(self, sleep=2):
-        print("AL: teardown")
         self.running = False
         time.sleep(sleep)
         self.msocket.close()
@@ -152,13 +151,11 @@ class AbstractListener(object):
         self.rcsocket.close()
 
     def __del__(self):
-        print("AL: deconstructed :(")
         if self.running:
             self.teardown(2)
 
 
 class StreamDisplayer(thr.Thread):
-
     """
     Displays the video streams of cars.
     Instantiating this class instantly launches it
@@ -174,7 +171,7 @@ class StreamDisplayer(thr.Thread):
         self.interface = carint
         thr.Thread.__init__(self, name="Streamer-of-{}".format(carint.ID))
         self.running = True
-        self.online = True
+        print("STREAM_DISPLAYER: online")
         self.start()
 
     def run(self):
@@ -191,12 +188,12 @@ class StreamDisplayer(thr.Thread):
             if not self.running:
                 break
         cv2.destroyWindow("{} Stream".format(self.interface.ID))
-        self.online = False
+        print("STREAM_DISPLAYER: Exiting...")
 
     def teardown(self, sleep=1):
         self.running = False
         time.sleep(sleep)
 
     def __del__(self):
-        if self.running or self.online:
+        if self.running:
             self.teardown(sleep=1)

@@ -56,6 +56,7 @@ class RCReceiver(ComponentBase):
     def __init__(self):
         super(RCReceiver, self).__init__()
         self._recvbuffer = []
+        print("RC: online")
 
     def run(self):
         while self.running:
@@ -74,7 +75,7 @@ class RCReceiver(ComponentBase):
 
                 # Clip the buffer, only keep the last 100 items
                 self._recvbuffer = self._recvbuffer[-100:]
-        print("RCReceiver nice exit!")
+        print("RC: Exiting...")
 
 
 class TCPStreamer(ComponentBase):
@@ -92,6 +93,7 @@ class TCPStreamer(ComponentBase):
         self._frameshape = None
         self.eye = Eye()
         self._determine_frame_shape()
+        print("STREAMER: online")
 
     @property
     def frameshape(self):
@@ -130,10 +132,12 @@ class TCPStreamer(ComponentBase):
             ##########################################
             for slc in (serial[i:i+1024] for i in range(0, len(serial), 1024)):
                 self.sock.send(slc)
+                if not self.running:
+                    break
             pushed += 1
             print("\rPushed {:>3} frames".format(pushed), end="")
         self.eye.close()
-        print("TCPStreamer: Stream terminated!")
+        print("STREAMER: Stream terminated!")
 
 
 class Eye(object):

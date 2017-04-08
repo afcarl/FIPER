@@ -1,11 +1,10 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
-import threading as thr
 import time
+import threading as thr
 from datetime import datetime
 
 from FIPER.generic.interfaces import interface_factory
-from FIPER.generic.routines import srvsock
 from FIPER.generic.abstract import (
     AbstractListener, StreamDisplayer, Console
 )
@@ -17,6 +16,7 @@ class Listener(AbstractListener):
     """
     Singleton class!
     Listens for incoming car connections for the server.
+    Runs in a separate thread.
     """
 
     instances = 0
@@ -28,10 +28,7 @@ class Listener(AbstractListener):
         AbstractListener.__init__(self, master.ip, self.handshake)
 
         self.master = master  # type: FleetHandler
-        self.msocket, self.dsocket, self.rcsocket = [
-            srvsock(master.ip, typ, tmt) for typ, tmt in zip("msr", (3, None, 1))
-        ]
-        self.worker = None
+        self.worker = None  # type: thr.Thread
 
         Listener.instances += 1
 
@@ -44,7 +41,7 @@ class Listener(AbstractListener):
         if self.worker is not None:
             print("{}-Attempted start while already running!")
             return
-        self.worker = thr.Thread(target=self.run, name="Server-Listener")
+        self.worker = thr.Thread(target=self.mainloop, name="Server-Listener")
         self.worker.start()
 
     def teardown(self, sleep=2):
@@ -89,36 +86,81 @@ class FleetHandler(object):
         self.cars = {}
         self.watchers = {}
         self.since = datetime.now()
+        self._cars_online = "Unknown, use 'sweep' to find out!"
 
         self.listener = Listener(self)
-        self.console = Console("FIPER-Server", commands_dict={
-            "cars": lambda: print("Cars online:", "\n".join(self.cars)),
+        self.console = Console("FIPER-Server", **{
+            "cars": self.printout_cars,
             "kill": self.kill_car,
             "watch": self.watch_car,
             "unwatch": self.stop_watch,
             "shutdown": self.shutdown,
             "status": self.report,
-            "start": self.listener.start,
-            "message": lambda ID, *msg: self.cars[ID].send(" ".join(msg).encode()),
-            "probe": lambda ip: Probe.probe(ip),
-            "connect": lambda ip: Probe.initiate(ip),
-            "sweep": lambda *ips: self.sweep(ips)
+            "message": self.message,
+            "probe": self.probe,
+            "connect": self.connect,
+            "sweep": self.sweep
         })
 
-        self.running = False
         self.status = "Idle"
+        print("SERVER: online")
 
-    def sweep(self, ips):
-        """
-        Sweeps the network for cars. Supply ip addresses or address ranges.
-        """
+    def printout_cars(self, *args):
+        """List the current car-connections"""
+        print("Cars online:\n{}\n".format("\n".join(self.cars)))
 
+    def connect(self, *ips):
+        """Initiate connection with the supplied ip address(es)"""
+        Probe.initiate(*ips)
+
+    def probe(self, *ips):
+        """Probe the supplied ip address(es)"""
+        Probe.probe(*ips)
+
+    def message(self, ID, *msgs):
+        """Just supply the car ID, and then the message to send."""
+        self.cars[ID].send(" ".join(msgs).encode())
+
+    def sweep(self, *ips):
+        """Probe the supplied ip addresses and print the formatted results"""
+        if not ips:
+            ips = ".".join(self.ip.split(".")[:-1] + ["0-255"])
+        IDs = dict(Probe.probe(*ips))
+
+        mxIDlen = max(len(unicode(v)) for v in IDs.values())
+        mxIPlen = 3+3+3+3+3
+        mxstatlen = 9
+
+        header = ("|{:^{IPlen}}|{:^{IDlen}}|{:^{statlen}}|\n".format(
+            "IP", "ID", "status", IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
+        )
+        table = ""
+        separator = ("+" + "-"*mxIPlen +
+                     "+" + "-"*mxIDlen +
+                     "+" + "-"*mxstatlen + "+\n")
+        buildme = "|{:^{IPlen}}|{:^{IDlen}}|{:^{statlen}}|\n"
+
+        for IP, ID in ((k, v) for k, v in IDs.iteritems() if v is not None):
+            status = ("connected" if ID in self.cars else "idle")
+            table += separator
+            table += (buildme.format(
+                IP, ID, status, IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
+            )
+        for IP, _ in ((k, v) for k, v in IDs.iteritems() if v is None):
+            table += separator
+            table += (buildme.format(
+                IP, "-", "offline", IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
+            )
+
+        table = ((separator + header + table + separator)
+                 if table else
+                 "No cars on the specified region!")
+
+        self._cars_online = table
+        print(table)
 
     def kill_car(self, ID, *args):
-        """
-        Sends a shutdown message for a remote car, then
-        tears down the connection and does the cleanup.
-        """
+        """Sends a shutdown message to a remote car, then tears down the connection"""
         if ID not in self.cars:
             print("SERVER: no such car:", ID)
             return
@@ -130,42 +172,41 @@ class FleetHandler(object):
 
         status = carifc.recv()
         if status is None:
-            print("SERVER: Car-{} didn't shut down as expected!".format(ID))
+            print("SERVER: car-{} didn't shut down as expected!".format(ID))
         elif status == "{} offline".format(ID):
-            print("SERVER: Car-{} shut down as expected".format(ID))
+            print("SERVER: car-{} shut down as expected".format(ID))
         else:
-            print("SERVER: received unknown status from Car-{}: {}"
+            print("SERVER: received unknown status from car-{}: {}"
                   .format(ID, status))
 
         del self.cars[ID]
 
     def watch_car(self, ID, *args):
-        """
-        Initializes streaming, then launches a StreamDisplayer,
-        which is run in a separate thread.
-        """
-
+        """Initializes streaming via StreamDisplayer in a separate thread"""
+        if ID not in self.cars:
+            print("SERVER: no such car [{}]".format(ID))
+            return
+        if ID in self.watchers:
+            print("SERVER: already watching", ID)
+            return
         self.cars[ID].send("stream on")
-        time.sleep(3)
+        time.sleep(1)
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
 
     def stop_watch(self, ID, *args):
-        """
-        Tears down the StreamDisplayer and shuts down a stream
-        """
+        """Tears down the StreamDisplayer and shuts down a stream"""
+        if ID not in self.watchers:
+            print("SERVER: {} is not being watched!".format(ID))
+            return
         self.cars[ID].send("stream off")
-        self.watchers[ID].running = False
+        self.watchers[ID].teardown()
         time.sleep(3)
         del self.watchers[ID]
 
     def shutdown(self, *args):
-        """
-        Shuts the server down, terminates all threads and
-        does the necessary cleanup
-        """
-        self.running = False
+        """Shuts the server down, terminating all threads nicely"""
 
-        exits = [None]*len(self.cars)
+        self.listener.teardown(1)
 
         for ID, car in sorted(self.cars.items()):
             if ID in self.watchers:
@@ -191,13 +232,13 @@ class FleetHandler(object):
             rounds += 1
         else:
             print("SERVER: All cars shut down correctly!")
+        print("SERVER: Exiting...")
 
     def report(self, *args):
         """
         Prints a nice server status report
         """
-        repchain = ("Online " if self.running else "Offline ")
-        repchain += "FIPER Server\n"
+        repchain = "FIPER Server\n"
         repchain += "-" * (len(repchain) - 1) + "\n"
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
         repchain += "Cars online: {}\n".format(len(self.cars))
