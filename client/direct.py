@@ -9,13 +9,13 @@ from FIPER.generic.abstract import (
 from generic import Probe
 
 
-class DirectConnection(AbstractListener, Probe):
+class DirectConnection(AbstractListener):
 
     def __init__(self, myIP):
         """
         :param myIP: the local IP address
         """
-        AbstractListener.__init__(self, myIP, self._listener_callback)
+        super(DirectConnection, self).__init__(myIP, self._listener_callback)
         self.target = None
         self.interface = None
         self.streamer = None  # type: StreamDisplayer
@@ -23,12 +23,12 @@ class DirectConnection(AbstractListener, Probe):
 
     def _listener_callback(self, msock):
         """
-        This method is called by AbstractListener.run() on the newly
+        This method is called by AbstractListener.mainloop() on the newly
         created message-connection socket which creates the messaging
         channel between the remote car and this class.
         """
         self.interface = interface_factory(msock, self.dsocket, self.rcsocket)
-        self.running = False
+        self.running = False  # Stop the mainloop in AbstractListener
 
     def connect(self, ip):
         """
@@ -38,7 +38,7 @@ class DirectConnection(AbstractListener, Probe):
         -- sends a connect message to the car
         -- receives and validates 
         """
-        self._probe(ip, "connect")
+        Probe.initiate(ip)
         self.mainloop()
 
     def get_stream(self, bytestream=False):

@@ -127,7 +127,7 @@ class Messaging(object):
 
 class Probe(object):
     """
-    Mixin class for entities with probing capabilities.
+    Mixin / Static class for entities with probing capabilities.
     """
 
     __metaclass__ = abc.ABCMeta

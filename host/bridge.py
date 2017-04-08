@@ -7,12 +7,12 @@ from datetime import datetime
 from FIPER.generic.interfaces import interface_factory
 from FIPER.generic.routines import srvsock
 from FIPER.generic.abstract import (
-    AbstractListener, StreamDisplayer
+    AbstractListener, StreamDisplayer, Console
 )
 from FIPER.generic.messaging import Probe
 
 
-class Console(thr.Thread):
+class OldConsole(Console):
 
     """
     Singleton class!
@@ -22,68 +22,11 @@ class Console(thr.Thread):
     instances = 0
 
     def __init__(self, master):
-        """
-        :param master: FleetHandler (server) object
-        """
+        super(Console, self).__init__("FIPER-Server", commands_dict=)
+
         if Console.instances > 0:
             raise RuntimeError("The Singleton [Console] is already instantiated!")
-        thr.Thread.__init__(self, name="Server-console")
-        self.master = master
-        self.commands = {
-            "help": lambda: print("Available commands:", ", "
-                                  .join(sorted(self.commands))),
-            "cars": lambda: print("Cars online:", ", "
-                                  .join(sorted(self.master.cars))),
-            "kill": self.master.kill_car,
-            "watch": self.master.watch_car,
-            "unwatch": self.master.stop_watch,
-            "shutdown": self.master.shutdown,
-            "status": self.master.report,
-            "start": self.master.listener.start,
-            "message": lambda ID, *msg: self.master.cars[ID].send(
-                b" ".join((w.encode() for w in msg))),
-            "probe": lambda ip: Probe.probe(ip),
-            "connect": lambda ip: self.master.connect_car(ip),
-        }
         Console.instances += 1
-
-    @property
-    def prompt(self):
-        return "FIPER bridge [{}] > ".format(self.master.status)
-
-    def run(self):
-        """
-        Server console main loop (and program main loop)
-        """
-        while 1:
-            cmd, args = self.read_cmd()
-            if not cmd:
-                continue
-            elif cmd == "shutdown":
-                break
-            else:
-                try:
-                    self.commands[cmd](*args)
-                except Exception as E:
-                    print("CONSOLE: The command [{}] caused exception: {}".format(cmd, E.message))
-                    print("CONSOLE: Ignoring commad!")
-        self.master.shutdown()
-        print("SERVER: Console shut down correctly")
-
-    def read_cmd(self):
-        c = raw_input(self.prompt).split(" ")
-        cmd = c[0].lower()
-        if len(c) > 1:
-            args = c[1:]
-        else:
-            args = ""
-        return cmd, args
-
-    def cmd_parser(self, cmd, args):
-        if cmd[0] not in self.commands:
-            print("SERVER: Unknown command:", cmd)
-        else:
-            self.commands[cmd](*args)
 
 
 class Listener(AbstractListener):
@@ -165,7 +108,18 @@ class FleetHandler(object):
         self.since = datetime.now()
 
         self.listener = Listener(self)
-        self.console = Console(self)
+        self.console = Console("FIPER-Server", commands_dict={
+            "cars": lambda: print("Cars online:", "\n".join(self.cars)),
+            "kill": self.kill_car,
+            "watch": self.watch_car,
+            "unwatch": self.stop_watch,
+            "shutdown": self.shutdown,
+            "status": self.report,
+            "start": self.listener.start,
+            "message": lambda ID, *msg: self.cars[ID].send(" ".join(msg).encode()),
+            "probe": lambda ip: Probe.probe(ip),
+            "connect": lambda ip: self.connect_car(ip),
+        })
 
         self.running = False
         self.status = "Idle"

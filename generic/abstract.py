@@ -8,6 +8,80 @@ import time
 from .routines import srvsock
 
 
+class Console(object):
+
+    def __init__(self, master_name, status_tag="", commands_dict={}, **commands):
+        """
+        Abstraction of a FIPER console.
+        commands should be one-word, but an arbitrary number of arguments
+        may be supplied, seperated by a space. Because of this, the
+        signature of the functions (the dictionary values) is recommended
+        to be (*arg) for functions and static methods or (self, *arg)
+        in case of bound object/class methods.
+        
+        :param master_name: needed to build the console prompt
+        :param status_tag: also for the console prompt
+        :param commands_dict: commands as a string: callable mapping
+        :param commands: commands can also be added as kwargs.
+        """
+        super(Console, self).__init__(name="{}-console".format(master_name))
+        if not commands and not commands_dict:
+            print("AbstractConsole: no commands specified!")
+        self.master_name = master_name
+        self.status_tag = status_tag
+        self.commands = {}
+        self.commands.update(commands_dict)
+        self.commands.update(commands)
+        if "help" not in self.commands:
+            self.commands["help"] = self.help
+        if "shutdown" not in commands:
+            raise RuntimeError("Please provide a shutdown command!")
+        self.running = True
+
+    def help(self, *args):
+        print("Available commands:", ", ".join(sorted(self.commands)))
+
+    @property
+    def prompt(self):
+        return " ".join((self.master_name, ("[{}]".format(self.status_tag)
+                         if self.status_tag else ""), "> "))
+
+    def run(self):
+        """
+        Server console main loop (and program main loop)
+        """
+        while self.running:
+            cmd, args = self.read_cmd()
+            if not cmd:
+                continue
+            elif cmd == "shutdown":
+                break
+            else:
+                try:
+                    self.commands[cmd](*args)
+                except Exception as E:
+                    print("CONSOLE: command [{}] caused an exception: {}"
+                          .format(cmd, E.message))
+                    print("CONSOLE: ignoring commad!")
+        self.commands["shutdown"](*args)
+        print("CONSOLE: exiting")
+
+    def read_cmd(self):
+        c = raw_input(self.prompt).split(" ")
+        cmd = c[0].lower()
+        if len(c) > 1:
+            args = c[1:]
+        else:
+            args = ""
+        return cmd, args
+
+    def cmd_parser(self, cmd, args):
+        if cmd[0] not in self.commands:
+            print("CONSOLE: Unknown command:", cmd)
+        else:
+            self.commands[cmd](*args)
+
+
 class AbstractListener(object):
     """
     Abstract base class for an entity which acts like a server,
