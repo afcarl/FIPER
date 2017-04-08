@@ -6,6 +6,7 @@ import socket
 import threading as thr
 
 from FIPER.generic import CAR_PROBE_PORT
+from FIPER.generic.routines import validate
 
 
 class Messaging(object):
@@ -132,6 +133,11 @@ class Probe(object):
 
     __metaclass__ = abc.ABCMeta
 
+    sock = socket.socket()
+    sock.settimeout(1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
     @staticmethod
     def validate_car_tag(tag, address=None):
         tag = unicode(tag)
@@ -161,28 +167,23 @@ class Probe(object):
 
         assert unicode(msg) in ("connect", "probing"), "Invalid message!"
 
-        def setup_socket():
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(1)
-            return s
-
-        def create_connection(s):
+        def create_connection():
             while 1:
                 try:
-                    s.connect((ip, CAR_PROBE_PORT))
+                    Probe.sock.connect((ip, CAR_PROBE_PORT))
                 except socket.timeout:
                     print("DirectConnection: waiting for remote...")
                 except socket.error:
                     print("DirectConnection: invalid address: ", ip)
-                    return None
+                    return 0
                 else:
-                    return s
+                    return 1
 
-        def probe_and_receive_tag(s):
-            s.sendall(msg)
+        def probe_and_receive_tag():
+            Probe.sock.sendall(msg)
             for i in range(10):
                 try:
-                    network_tag = s.recv(1024)
+                    network_tag = Probe.sock.recv(1024)
                 except socket.timeout:
                     pass
                 else:
@@ -191,24 +192,37 @@ class Probe(object):
                 print("DirectConnection: Couldn't connect to car @", ip)
                 return None
 
-        sock = setup_socket()
-        sock = create_connection(sock)
-        if sock is None:
+        success = create_connection()
+        if not success:
             return
-        tag = probe_and_receive_tag(sock)
+        tag = probe_and_receive_tag()
         if tag is None:
             return
-        ID = validate_car_tag(tag, ip)
+        ID = Probe.validate_car_tag(tag, ip)
         if ID is None:
             print("DirectConnection: invalid car ID from tag: [{}] @ {}"
                   .format(tag, ip))
             return
+        Probe.sock.shutdown(1)
+        Probe.sock.close()
         return ID
 
     @staticmethod
-    def probe(ip):
-        return Probe._probe(ip, b"probing")
+    def probe(*ips):
+        """
+        Send a <probing> message to the specified IP addresses.
+        If the target is a car, it will return its ID, or None otherwise.
+        """
+        # Sacred docstring. Please don't touch it. :)
+        responses = [Probe._probe(ip, b"probing") for ip in ips]
+        return responses[0] if len(responses) == 1 else responses
 
     @staticmethod
-    def initiate(ip):
-        return Probe._probe(ip, b"connect")
+    def initiate(*ips):
+        """
+        Send a <connect> message to the specified IP addresses.
+        The target car will initiate connection to this server/client.
+        """
+        # Sacred docstring. Please don't touch it. :)
+        responses = [Probe._probe(ip, b"connect") for ip in ips]
+        return responses[0] if len(responses) == 1 else responses

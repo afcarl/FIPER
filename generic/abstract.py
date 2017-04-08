@@ -9,22 +9,26 @@ from .routines import srvsock
 
 
 class Console(object):
-
+    """
+    Abstraction of a FIPER console.
+    Commands should be single words, but an arbitrary number of arguments
+    may be supplied, seperated by a space. Because of this, the
+    signature of the functions (the dictionary values) is recommended
+    to be (*arg) for functions and static methods or (self, *arg)
+    in case of bound object/class methods.
+    A help command is supplied by default.
+    Help can be called on a command, in which case the docstring of
+    the appropriate function will be printed.
+    """
     def __init__(self, master_name, status_tag="", commands_dict={}, **commands):
         """
-        Abstraction of a FIPER console.
-        commands should be one-word, but an arbitrary number of arguments
-        may be supplied, seperated by a space. Because of this, the
-        signature of the functions (the dictionary values) is recommended
-        to be (*arg) for functions and static methods or (self, *arg)
-        in case of bound object/class methods.
         
         :param master_name: needed to build the console prompt
         :param status_tag: also for the console prompt
         :param commands_dict: commands as a string: callable mapping
         :param commands: commands can also be added as kwargs.
         """
-        super(Console, self).__init__(name="{}-console".format(master_name))
+        super(Console, self).__init__()
         if not commands and not commands_dict:
             print("AbstractConsole: no commands specified!")
         self.master_name = master_name
@@ -39,7 +43,16 @@ class Console(object):
         self.running = True
 
     def help(self, *args):
-        print("Available commands:", ", ".join(sorted(self.commands)))
+        """Who helps the helpers?"""
+        if not args:
+            print("Available commands:", ", ".join(sorted(self.commands)))
+        else:
+            for arg in args:
+                if arg not in self.commands:
+                    print("No such command: [{}]".format(arg))
+                else:
+                    print("Docstring for [{}]: {}"
+                          .format(arg, self.commands[arg].__doc__.replace("\n", " ")))
 
     @property
     def prompt(self):

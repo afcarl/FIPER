@@ -12,23 +12,6 @@ from FIPER.generic.abstract import (
 from FIPER.generic.messaging import Probe
 
 
-class OldConsole(Console):
-
-    """
-    Singleton class!
-    Abstraction of the server's console.
-    """
-
-    instances = 0
-
-    def __init__(self, master):
-        super(Console, self).__init__("FIPER-Server", commands_dict=)
-
-        if Console.instances > 0:
-            raise RuntimeError("The Singleton [Console] is already instantiated!")
-        Console.instances += 1
-
-
 class Listener(AbstractListener):
 
     """
@@ -118,15 +101,18 @@ class FleetHandler(object):
             "start": self.listener.start,
             "message": lambda ID, *msg: self.cars[ID].send(" ".join(msg).encode()),
             "probe": lambda ip: Probe.probe(ip),
-            "connect": lambda ip: self.connect_car(ip),
+            "connect": lambda ip: Probe.initiate(ip),
+            "sweep": lambda *ips: self.sweep(ips)
         })
 
         self.running = False
         self.status = "Idle"
 
-    def connect_car(self, ip):
-        ID = Probe.initiate(ip)
-        # TODO: make this happen!!!
+    def sweep(self, ips):
+        """
+        Sweeps the network for cars. Supply ip addresses or address ranges.
+        """
+
 
     def kill_car(self, ID, *args):
         """
