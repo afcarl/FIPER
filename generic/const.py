@@ -8,6 +8,7 @@ RC_SERVER_PORT = 1232
 
 # Stream's tick time in seconds:
 TICK = .1
+FPS = None  # TODO: TICK is deprecated, use FPS!
 
 # Standard RGB data type, 0-255 unsigned int
 DTYPE = np.uint8

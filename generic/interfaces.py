@@ -1,14 +1,12 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
-import socket
-import threading as thr
-
 import numpy as np
 
-from . import DTYPE, Messaging
+from .const import DTYPE
+from .messaging import Messaging
 
 
-def interface_factory(msock, dsock, rcsock=None):
+def interface_factory(msock, dsock, rcsock):
 
     """
     Coordinates the handshake between a network entity
@@ -80,7 +78,7 @@ def interface_factory(msock, dsock, rcsock=None):
         )
     elif entity_type == "client":
         ifc = ClientInterface(
-            ID, dsock, messenger
+            ID, dsock, rcsock, messenger
         )
     else:
         raise RuntimeError("Unknown entity type: " + entity_type)
@@ -89,7 +87,7 @@ def interface_factory(msock, dsock, rcsock=None):
 
 class NetworkEntity(object):
     """
-    Base class for all Server-Entity connections,
+    Base class for all connections,
     where Entity may be some remote network entity
     (like a car or a client).
     
@@ -100,16 +98,31 @@ class NetworkEntity(object):
 
     entity_type = ""
 
-    def __init__(self, ID, dlistener, messenger):
+    def __init__(self, ID, dlistener, rclistener, messenger):
         self.ID = ID
-        self.messenger = messenger
+        self.messenger = messenger  # type: Messaging
         self.send = messenger.send
         self.recv = messenger.recv
-        conn, addr = dlistener.accept()
-        self.out("Data connection established with {} @ {}:{}"
-                 .format(self.entity_type, *addr))
-        self.dsocket = conn
-        self.remote_ip, self.remote_port = addr
+        self.remote_ip = None
+        self._accept_connection_and_validate_ip_addresses(dlistener, "Data")
+        self._accept_connection_and_validate_ip_addresses(rclistener, "RC")
+
+    def _accept_connection_and_validate_ip_addresses(self, sock, typ):
+        conn, addr = sock.accept()
+        self.out("{} connection from {}:{}".format(typ, *addr))
+        if self.remote_ip:
+            if self.remote_ip != addr[0]:
+                msg = "Warning! Difference in inbound connection addresses!\n"
+                msg += ("Messaging is on {}\nData is on {}\nRC is on {}"
+                        .format(self.messenger.sock.getsockname()[0],
+                                self.remote_ip, addr[0]))
+                raise RuntimeError(msg)
+        else:
+            self.remote_ip = addr[0]
+        if typ == "Data":
+            self.dsocket = conn
+        else:
+            self.rcsocket = conn
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
@@ -121,9 +134,6 @@ class NetworkEntity(object):
     def teardown(self, sleep):
         self.messenger.teardown(sleep)
         self.dsocket.close()
-
-    def __del__(self):
-        self.teardown(3)
 
 
 class CarInterface(NetworkEntity):
@@ -145,16 +155,9 @@ class CarInterface(NetworkEntity):
         :param frameshape: string descriping the video frame shape: {}x{}x{}
         """
 
-        super(CarInterface, self).__init__(ID, dlistener, messenger)
+        super(CarInterface, self).__init__(ID, dlistener, rclistener, messenger)
         self.out("Frameshape:", frameshape)
         self.frameshape = frameshape
-        try:
-            self.rcsocket, addr = rclistener.accept()
-        except socket.timeout:
-            print("IFC-{}: didn't receive request on RC socket"
-                  .format(ID))
-        else:
-            self.out("RC connection established with {} @ {}:{}".format(ID, *addr))
 
     def bytestream(self):
         """
@@ -198,13 +201,13 @@ class ClientInterface(NetworkEntity):
 
     entity_type = "client"
 
-    def __init__(self, ID, dlistener, messenger):
+    def __init__(self, ID, dlistener, rclistener, messenger):
         """
         :param ID: the client's unique ID
         :param dlistener: serving TCP socket on STREAM_SERVER_PORT
         :param messenger: Messaging object
         """
-        super(ClientInterface, self).__init__(ID, dlistener, messenger)
+        super(ClientInterface, self).__init__(ID, dlistener, rclistener, messenger)
         self.worker = None
         self.target_carinterface = None
         self.streaming = False
@@ -214,58 +217,3 @@ class ClientInterface(NetworkEntity):
         super(ClientInterface, self).teardown(sleep)
         self.worker = None
         self.out("Teardown finished!")
-
-
-class ServerInterface(NetworkEntity):
-
-    """
-    TBD...
-    """
-
-    entity_type = "server"
-
-    def __init__(self, ID, dlistener, messenger):
-        super(ServerInterface, self).__init__(ID, dlistener, messenger)
-
-
-class ClientCarInterface(object):
-
-    """
-    Abstraction of a server-level Client-Car connection.
-    """
-
-    # TODO: dev currently halted, client has priority.
-
-    def __init__(self, carifc, cliifc):
-        self.carifc = carifc
-        self.cliifc = cliifc
-        self.stream_worker = None
-        self.rc_worker = None
-        self.streaming = False
-        self.controlling = False
-
-    def forward_stream(self):
-        self.stream_worker = thr.Thread(target=self._forward_stream)
-        self.streaming = True
-        self.stream_worker.start()
-
-    def forward_rc(self):
-        self.rc_worker = thr.Thread(target=self._forward_rc)
-        self.controlling = True
-        self.rc_worker.start()
-
-    def _forward_stream(self):
-        stream = self.carifc.bytestream()
-        for byte in stream:
-            self.cliifc.dsocket.send(byte)
-            if not self.streaming:
-                break
-        self.streaming = False
-
-    def _forward_rc(self):
-        stream = self.cliifc.bytestream()
-        for byts in stream:
-            self.carifc.rcocket.send(byts)
-            if not self.controlling:
-                break
-        self.controlling = False

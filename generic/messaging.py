@@ -49,7 +49,7 @@ class Messaging(object):
                 for slc in (msg[i:i+1024] for i in range(0, len(msg), 1024)):
                     self.sock.send(slc)
             time.sleep(0.5)
-        print("Messenger outflow worker exited!")
+        print("MESSENGER: flow_out exiting...")
 
     def flow_in(self):
         """
@@ -64,9 +64,9 @@ class Messaging(object):
                     slc = self.sock.recv(1024)
                 except socket.timeout:
                     pass
-                # except socket.error as E:
-                #     print("MESSENGER: caught socket exception:", E.message)
-                #     self.running = False
+                except socket.error as E:
+                    print("MESSENGER: caught socket exception:", E.message)
+                    self.teardown(1)
                 else:
                     data += slc
             if not self.running:
@@ -75,7 +75,7 @@ class Messaging(object):
                     return
             data = data[:-5].decode("utf8")
             self.recvbuffer.extend(data.split("ROGER"))
-        print("Messenger inflow worker exited!")
+        print("MESSENGER: flow_in exiting...")
 
     def send(self, *msgs):
         """
@@ -118,7 +118,6 @@ class Messaging(object):
         self.running = False
         time.sleep(sleep)
         self.sock.close()
-        print("Messenger OUT!")
 
     def __del__(self):
         if self.running:
@@ -134,24 +133,63 @@ class Probe(object):
 
     @staticmethod
     def validate_car_tag(tag, address=None):
-        tag = unicode(tag)
-        print("TAG-VALIDATING:", tag)
-        if " @ " not in tag:
-            return
-        IDs, remote_addr = tag.split(" @ ")
-        if address is not None:
+        
+        def missing_ampersand():
+            print("TAG-VALIDATING:", tag)
+            if " @ " not in tag:
+                return 1
+
+        def warn_if_received_address_does_not_equal_expected():
             if remote_addr != address:
                 print("INVALID CAR TAG: address invalid:")
                 print("(expected) {} != {} (got)"
                       .format(address, remote_addr))
+
+        def invalid_entity_type():
+            if entity_type != "car":
+                print("INVALID CAR TAG: invalid entity type:", entity_type)
+
+        tag = unicode(tag)
+        if missing_ampersand():
+            return 
+        IDs, remote_addr = tag.split(" @ ")
+        if address is not None:
+            warn_if_received_address_does_not_equal_expected()
         entity_type, ID = IDs.split("-")
-        if entity_type != "car":
-            print("INVALID CAR TAG: invalid entity type:", entity_type)
+        if invalid_entity_type():
             return
         return ID
 
     @staticmethod
-    def _probe(ip, msg):
+    def probe(*ips):
+        """
+        Send a <probing> message to the specified IP addresses.
+        If the target is a car, it will return its ID, or None otherwise.
+        """
+        return Probe._probe_all(b"probing", *ips)
+
+    @staticmethod
+    def initiate(*ips):
+        """
+        Send a <connect> message to the specified IP addresses.
+        The target car will initiate connection to this server/client.
+        """
+        return Probe._probe_all(b"connect", *ips)
+
+    @staticmethod
+    def _probe_all(msg, *ips):
+        """
+        Send a <probing> message to the specified IP addresses.
+        If the target is a car, it will return its ID, or None otherwise.
+        """
+        reparsed = []
+        for ip in ips:
+            reparsed += Probe._reparse_and_validate_ip(ip)
+        responses = [Probe._probe_one(ip, msg) for ip in reparsed]
+        return responses
+
+    @staticmethod
+    def _probe_one(ip, msg):
         """
         Probes an IP address with a given message.
         This causes the remote car to send back its
@@ -202,53 +240,46 @@ class Probe(object):
         return ip, ID
 
     @staticmethod
-    def probe(*ips):
-        """
-        Send a <probing> message to the specified IP addresses.
-        If the target is a car, it will return its ID, or None otherwise.
-        """
-        # Sacred docstring. Please don't touch it. :)
-        reparsed = []
-        for ip in ips:
-            reparsed += Probe._reparse_and_validate_ip(ip)
-        responses = [Probe._probe(ip, b"probing") for ip in reparsed]
-        return responses[0] if len(responses) == 1 else responses
-
-    @staticmethod
-    def initiate(*ips):
-        """
-        Send a <connect> message to the specified IP addresses.
-        The target car will initiate connection to this server/client.
-        """
-        # Sacred docstring. Please don't touch it. :)
-        reparsed = []
-        for ip in ips:
-            reparsed += Probe._reparse_and_validate_ip(ip)
-        responses = [Probe._probe(ip, b"connect") for ip in ips]
-        return responses[0] if len(responses) == 1 else responses
-
-    @staticmethod
     def _reparse_and_validate_ip(ip):
+
+        def look_for_hyphen(i, part):
+            if state_flag >= 0:
+                print("PROBE: only one part of the IP can be set to a range!")
+                return None
+            if not all(r.isdigit() for r in part.split("-")):
+                print(msg, "Found non-digit in range!")
+                return None
+            return i
+
+        def split_ip():
+            split = ip.split(".")
+            if len(split) != 4:
+                return
+            return split
+
+        def calculate_state():
+            for i, part in enumerate(splip):
+                if "-" in part:
+                    return look_for_hyphen(i, part)
+                else:
+                    if not part.isdigit():
+                        print(msg, "Found non-digit:", part)
+                        return None
+            return -1
+
         msg = "PROBE: invalid IP!"
-        splip = ip.split(".")
-        if len(splip) != 4:
+        splip = split_ip()
+        if splip is None:
             return [None]
-        found_hyphen = 0
-        for i, part in enumerate(splip):
-            if "-" in part:
-                if found_hyphen:
-                    print("PROBE: only one part of the IP can be set to a range!")
-                    return [None]
-                if not all(r.isdigit() for r in part.split("-")):
-                    print(msg, "Found non-digit in range!")
-                    return [None]
-                found_hyphen = i
-            else:
-                if not part.isdigit():
-                    print(msg, "Found non-digit:", part)
-                    return [None]
-        if found_hyphen:
-            start, stop = splip[found_hyphen].split("-")
-            return [".".join(splip[:found_hyphen] + [str(i)] + splip[found_hyphen+1:])
+
+        state_flag = -1
+        state_flag = calculate_state()
+        
+        if state_flag >= 0:
+            start, stop = splip[state_flag].split("-")
+            return [".".join(splip[:state_flag] + [str(i)] + splip[state_flag+1:])
                     for i in range(int(start), int(stop))]
-        return [ip]
+        elif state_flag is None:
+            return [None]
+        else:
+            return [ip]

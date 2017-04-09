@@ -9,6 +9,7 @@ from FIPER.generic.abstract import (
     AbstractListener, StreamDisplayer, Console
 )
 from FIPER.generic.messaging import Probe
+from FIPER.generic.util import Table
 
 
 class Listener(AbstractListener):
@@ -69,8 +70,7 @@ class FleetHandler(object):
     """
     Class of the main server.
     Groups together the following concepts:
-    - Console is run in the main thread, waiting for and parsing input
-    commands.
+    - Console is run in the main thread, waiting for and parsing input commands.
     - Listener is listening for incomming car connections in a separate thread.
     It also coordinates the creation and validation of new car interfaces.
     - CarInterface instances are stored in the .cars dictionary.
@@ -109,55 +109,44 @@ class FleetHandler(object):
         """List the current car-connections"""
         print("Cars online:\n{}\n".format("\n".join(self.cars)))
 
-    def connect(self, *ips):
+    @staticmethod
+    def connect(*ips):
         """Initiate connection with the supplied ip address(es)"""
         Probe.initiate(*ips)
 
-    def probe(self, *ips):
+    @staticmethod
+    def probe(*ips):
         """Probe the supplied ip address(es)"""
-        Probe.probe(*ips)
+        IDs = dict(Probe.probe(*ips))
+        for ID, IP in IDs.iteritems():
+            print("{:<15}: {}".format(IP, ID if ID else "-"))
 
     def message(self, ID, *msgs):
         """Just supply the car ID, and then the message to send."""
         self.cars[ID].send(" ".join(msgs).encode())
 
-    def sweep(self, *ips):
+    @staticmethod
+    def sweep(*ips):
         """Probe the supplied ip addresses and print the formatted results"""
+
+        def get_status(dID):
+            status = ""
+            if dID is None:
+                status = "offline"
+            else:
+                status = "available"
+            return status
+
         if not ips:
-            ips = ".".join(self.ip.split(".")[:-1] + ["0-255"])
+            print("[sweep]: please specify an IP address range!")
+            return
         IDs = dict(Probe.probe(*ips))
+        tab = Table(["IP", "ID", "status"],
+                    [3*5, max(len(unicode(v)) for v in IDs.itervalues()), 11])
+        for IP, ID in IDs.iteritems():
+            tab.add(IP, ID, get_status(ID))
 
-        mxIDlen = max(len(unicode(v)) for v in IDs.values())
-        mxIPlen = 3+3+3+3+3
-        mxstatlen = 9
-
-        header = ("|{:^{IPlen}}|{:^{IDlen}}|{:^{statlen}}|\n".format(
-            "IP", "ID", "status", IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
-        )
-        table = ""
-        separator = ("+" + "-"*mxIPlen +
-                     "+" + "-"*mxIDlen +
-                     "+" + "-"*mxstatlen + "+\n")
-        buildme = "|{:^{IPlen}}|{:^{IDlen}}|{:^{statlen}}|\n"
-
-        for IP, ID in ((k, v) for k, v in IDs.iteritems() if v is not None):
-            status = ("connected" if ID in self.cars else "idle")
-            table += separator
-            table += (buildme.format(
-                IP, ID, status, IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
-            )
-        for IP, _ in ((k, v) for k, v in IDs.iteritems() if v is None):
-            table += separator
-            table += (buildme.format(
-                IP, "-", "offline", IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
-            )
-
-        table = ((separator + header + table + separator)
-                 if table else
-                 "No cars on the specified region!")
-
-        self._cars_online = table
-        print(table)
+        print(tab.get())
 
     def kill_car(self, ID, *args):
         """Sends a shutdown message to a remote car, then tears down the connection"""
