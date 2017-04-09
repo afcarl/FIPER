@@ -70,8 +70,7 @@ class FleetHandler(object):
     """
     Class of the main server.
     Groups together the following concepts:
-    - Console is run in the main thread, waiting for and parsing input
-    commands.
+    - Console is run in the main thread, waiting for and parsing input commands.
     - Listener is listening for incomming car connections in a separate thread.
     It also coordinates the creation and validation of new car interfaces.
     - CarInterface instances are stored in the .cars dictionary.
@@ -111,37 +110,39 @@ class FleetHandler(object):
         print("Cars online:\n{}\n".format("\n".join(self.cars)))
 
     @staticmethod
-    def connect(self, *ips):
+    def connect(*ips):
         """Initiate connection with the supplied ip address(es)"""
         Probe.initiate(*ips)
 
     @staticmethod
-    def probe(self, *ips):
+    def probe(*ips):
         """Probe the supplied ip address(es)"""
-        Probe.probe(*ips)
+        IDs = dict(Probe.probe(*ips))
+        for ID, IP in IDs.iteritems():
+            print("{:<15}: {}".format(IP, ID if ID else "-"))
 
     def message(self, ID, *msgs):
         """Just supply the car ID, and then the message to send."""
         self.cars[ID].send(" ".join(msgs).encode())
 
-    def sweep(self, *ips):
+    @staticmethod
+    def sweep(*ips):
         """Probe the supplied ip addresses and print the formatted results"""
 
         def get_status(dID):
+            status = ""
             if dID is None:
-                return "offline"
-            elif dID in self.cars:
-                if dID in self.watchers:
-                    return "streaming"
-                return "connected"
+                status = "offline"
             else:
-                return "idle"
+                status = "available"
+            return status
 
         if not ips:
-            ips = ".".join(self.ip.split(".")[:-1] + ["0-255"])
+            print("[sweep]: please specify an IP address range!")
+            return
         IDs = dict(Probe.probe(*ips))
         tab = Table(["IP", "ID", "status"],
-                    [max(len(unicode(v)) for v in IDs.itervalues()), 3*5, 11])
+                    [3*5, max(len(unicode(v)) for v in IDs.itervalues()), 11])
         for IP, ID in IDs.iteritems():
             tab.add(IP, ID, get_status(ID))
 

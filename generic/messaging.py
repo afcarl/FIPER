@@ -186,7 +186,7 @@ class Probe(object):
         for ip in ips:
             reparsed += Probe._reparse_and_validate_ip(ip)
         responses = [Probe._probe_one(ip, msg) for ip in reparsed]
-        return responses[0] if len(responses) == 1 else responses
+        return responses
 
     @staticmethod
     def _probe_one(ip, msg):
@@ -243,7 +243,7 @@ class Probe(object):
     def _reparse_and_validate_ip(ip):
 
         def look_for_hyphen(i, part):
-            if state_flag:
+            if state_flag >= 0:
                 print("PROBE: only one part of the IP can be set to a range!")
                 return None
             if not all(r.isdigit() for r in part.split("-")):
@@ -271,7 +271,8 @@ class Probe(object):
         splip = split_ip()
         if splip is None:
             return [None]
-        
+
+        state_flag = -1
         state_flag = calculate_state()
         
         if state_flag >= 0:

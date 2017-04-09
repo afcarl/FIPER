@@ -81,6 +81,7 @@ class Console(object):
             elif cmd == "shutdown":
                 break
             else:
+                # try:
                 self.commands[cmd](*args)
                 # except Exception as E:
                 #     print("CONSOLE: command [{}] raised: {}"

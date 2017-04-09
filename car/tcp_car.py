@@ -5,14 +5,11 @@ import time
 import socket
 
 # Project imports
-import warnings
-
 from FIPER.car.components import TCPStreamer, RCReceiver
-
-from FIPER.generic import Messaging
-from FIPER.generic import (
-    MESSAGE_SERVER_PORT, STREAM_SERVER_PORT,
-    RC_SERVER_PORT, CAR_PROBE_PORT
+from FIPER.generic.messaging import Messaging
+from FIPER.generic.const import (
+    CAR_PROBE_PORT, MESSAGE_SERVER_PORT,
+    STREAM_SERVER_PORT, RC_SERVER_PORT
 )
 
 
@@ -51,17 +48,15 @@ class Idle(object):
             return False
 
         print("IDLE: got msg:", msg)
-        self._respond_to_probe()
+        self._respond_to_probe(msg)
         return msg == "connect"
 
-    def _respond_to_probe(self):
+    def _respond_to_probe(self, msg):
         m = b"car-{} @ {}".format(self.ID, self.IP)
-        if m == "connect":
-            self.conn.send(m)
-        elif m == "probing":
+        if msg in ("connect", "probing"):
             self.conn.send(m)
         else:
-            print("NETWORKTAG: invalid message received! Ignoring...")
+            print("IDLE: invalid message received! Ignoring...")
 
     def mainloop(self):
         self._setup_socket()
@@ -98,6 +93,8 @@ class TCPCar(object):
         self.messenger = None  # type: Messaging
         self.live = False
         self.server_ip = None
+        self.idle()
+        self.connect()
 
     def idle(self):
         self.server_ip = Idle(self.ip, self.ID).mainloop()
@@ -120,6 +117,7 @@ class TCPCar(object):
                 if hello is not None:
                     break
             else:
+                # noinspection PyUnboundLocalVariable
                 raise RuntimeError("Handshake error: {}".format(hello))
             return hello
 
@@ -129,10 +127,17 @@ class TCPCar(object):
                 raise RuntimeError("Handshake error!")
 
         # Function body starts here {just to be clear :)}
-        self.messenger = Messaging(socket.create_connection(self.server_ip, timeout=1))
+        self.messenger = Messaging(
+            socket.create_connection((self.server_ip, MESSAGE_SERVER_PORT), timeout=1),
+            tag=b"{}-{}:".format(self.entity_type, self.ID)
+        )
         perform_handshake()
-        self.streamer.connect(socket.create_connection(self.server_ip))
-        self.receiver.connect(socket.create_connection(self.server_ip, timeout=1))
+        self.streamer.connect(
+            socket.create_connection((self.server_ip, STREAM_SERVER_PORT))
+        )
+        self.receiver.connect(
+            socket.create_connection((self.server_ip, RC_SERVER_PORT), timeout=1)
+        )
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""

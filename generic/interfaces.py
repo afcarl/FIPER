@@ -1,11 +1,9 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
-import socket
-import threading as thr
-
 import numpy as np
 
-from . import DTYPE, Messaging
+from .const import DTYPE
+from .messaging import Messaging
 
 
 def interface_factory(msock, dsock, rcsock):
@@ -105,12 +103,13 @@ class NetworkEntity(object):
         self.messenger = messenger  # type: Messaging
         self.send = messenger.send
         self.recv = messenger.recv
+        self.remote_ip = None
         self._accept_connection_and_validate_ip_addresses(dlistener, "Data")
         self._accept_connection_and_validate_ip_addresses(rclistener, "RC")
 
     def _accept_connection_and_validate_ip_addresses(self, sock, typ):
         conn, addr = sock.accept()
-        self.out("{} connection from {}:{}".format(*addr))
+        self.out("{} connection from {}:{}".format(typ, *addr))
         if self.remote_ip:
             if self.remote_ip != addr[0]:
                 msg = "Warning! Difference in inbound connection addresses!\n"
@@ -135,9 +134,6 @@ class NetworkEntity(object):
     def teardown(self, sleep):
         self.messenger.teardown(sleep)
         self.dsocket.close()
-
-    def __del__(self):
-        self.teardown(3)
 
 
 class CarInterface(NetworkEntity):
