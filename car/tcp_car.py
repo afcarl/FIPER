@@ -16,67 +16,66 @@ from FIPER.generic import (
 )
 
 
-def idle(myip, myID):
-    """
-    Broadcasts the ID of the car if probed.
-    Also returns the IP of a probing server if the server
-    sends a "probing" message.
+class Idle(object):
 
-    :param myip: the ip address of this car 
-    :param myID: a unique string, identifiing this car
-    :return: the ip of the server if the server sends a "connect" message
-    """
+    """Before instantiating TCPCar"""
 
-    def setup_socket():
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        sock.bind((myip, CAR_PROBE_PORT))
-        sock.listen(1)
-        return sock
+    def __init__(self, myIP, myID):
+        self.IP = myIP
+        self.ID = myID
+        self.sock = None
+        self.conn = None
+        self.remote_address = None
 
-    def read_message_from_probe(sck):
+    def _setup_socket(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(1)
+        self.sock.bind((self.IP, CAR_PROBE_PORT))
+        self.sock.listen(1)
+        print("CAR-{}: Awaiting connection... Hit Ctrl-C to break!".format(self.ID))
+
+    def _read_message_from_probe(self):
         try:
-            m = sck.recv(1024)
+            m = self.conn.recv(1024)
         except socket.timeout:
             return
         else:
-            return m
+            return m if m in ("probing", "connect") else None
 
-    def parse_message(m):
-        m = unicode(m)
-        if (not m) or (m == "probing"):
-            return "probing"
-        elif m == "connect":
-            return m
+    def _new_connection_causes_loopbreak(self):
+        print("IDLE: probed by", self.IP)
+
+        msg = self._read_message_from_probe()
+        if msg is None:
+            print("IDLE: unknown host:", self.remote_address[0])
+            return False
+
+        print("IDLE: got msg:", msg)
+        self._respond_to_probe()
+        return msg == "connect"
+
+    def _respond_to_probe(self):
+        m = b"car-{} @ {}".format(self.ID, self.IP)
+        if m == "connect":
+            self.conn.send(m)
+        elif m == "probing":
+            self.conn.send(m)
         else:
-            warnings.warn("Invalid probe message: " + m)
+            print("NETWORKTAG: invalid message received! Ignoring...")
 
-    def respond_to_probe(sck, ID, ip):
-        m = b"car-{} @ {}".format(ID, ip)
-        sck.sendall(m)
-
-    probe_receiver_socket = setup_socket()
-    print("CAR-{}: Awaiting connection... Hit Ctrl-C to break!"
-          .format(myID))
-    while 1:
-        try:
-            conn, addr = probe_receiver_socket.accept()
-        except socket.timeout:
-            pass
-        else:
-            print("NETWORKTAG: probed by {}:{}".format(*addr))
-            msg = read_message_from_probe(conn)
-            msg = parse_message(msg)
-            print("NETWORKTAG: got msg:", msg)
-            if msg == "connect":
-                respond_to_probe(conn, myID, myip)
-                return addr[0]
-            elif msg == "probing":
-                respond_to_probe(conn, myID, myip)
+    def mainloop(self):
+        self._setup_socket()
+        while 1:
+            try:
+                self.conn, self.remote_address = self.sock.accept()
+            except socket.timeout:
+                pass
             else:
-                print("NETWORKTAG: invalid message received! Ignoring...")
-            conn.close()
-            del conn
+                if self._new_connection_causes_loopbreak():
+                    break
+                self.conn.close()
+                self.conn = None
+        return self.remote_address[0]
 
 
 class TCPCar(object):
@@ -98,45 +97,42 @@ class TCPCar(object):
         self.receiver = RCReceiver()
         self.messenger = None  # type: Messaging
         self.live = False
+        self.server_ip = None
 
-        server_ip = idle(myIP, myID)
-        self.connect(server_ip)
+    def idle(self):
+        self.server_ip = Idle(self.ip, self.ID).mainloop()
 
-    def connect(self, server_ip):
+    def connect(self):
         """Establishes connections with the server"""
 
-        def setup_message_connection():
-            msocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            msocket.connect((server_ip, MESSAGE_SERVER_PORT))
-            self.messenger = Messaging(msocket, tag=b"{}-{}:".format(self.entity_type, self.ID))
-
-        def setup_data_connection():
-            dsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            dsocket.connect((server_ip, STREAM_SERVER_PORT))
-            self.streamer.connect(dsocket)
-
-        def setup_rc_connection():
-            rcsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            rcsock.settimeout(1)
-            rcsock.connect((server_ip, RC_SERVER_PORT))
-            self.receiver.connect(rcsock)
-
         def perform_handshake():
+            send_indtroduction()
+            hello = read_response()
+            validate_response(hello)
+
+        def send_indtroduction():
             introduction = "HELLO;" + self.streamer.frameshape
             self.messenger.send(introduction.encode())
-            hello = None
-            while hello is None:
+
+        def read_response():
+            for i in range(4, -1, -1):
                 hello = self.messenger.recv(timeout=1)
-                self.out("Received handshake:", hello)
+                if hello is not None:
+                    break
+            else:
+                raise RuntimeError("Handshake error: {}".format(hello))
+            return hello
+
+        def validate_response(hello):
             if hello != "HELLO":
                 print("Wrong handshake from server! Shutting down!")
                 raise RuntimeError("Handshake error!")
 
         # Function body starts here {just to be clear :)}
-        setup_message_connection()
+        self.messenger = Messaging(socket.create_connection(self.server_ip, timeout=1))
         perform_handshake()
-        setup_data_connection()
-        setup_rc_connection()
+        self.streamer.connect(socket.create_connection(self.server_ip))
+        self.receiver.connect(socket.create_connection(self.server_ip, timeout=1))
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
@@ -159,19 +155,26 @@ class TCPCar(object):
         This loop wathces the messaging system and receives
         control commands from the server.
         """
+
+        def read_a_single_message():
+            m = self.messenger.recv(timeout=1)
+            if m is None:
+                return
+            self.out("Received message:", m)
+            return m
+
         self.live = True
         while self.live:
-            msg = self.messenger.recv(timeout=1)
+            msg = read_a_single_message()
             if msg is None:
                 continue
-            self.out("Received message:", msg)
-            if msg == "shutdown":
-                self.shutdown()
-                break
             elif msg == "stream on":
                 self.streamer.start()
             elif msg == "stream off":
-                self.streamer.running = False
+                self.streamer.teardown(sleep=0.5)
+            elif msg == "shutdown":
+                self.shutdown()
+                break
             else:
                 self.out("Received unknown command:", msg)
         self.out("Shutting down...")

@@ -9,6 +9,7 @@ from FIPER.generic.abstract import (
     AbstractListener, StreamDisplayer, Console
 )
 from FIPER.generic.messaging import Probe
+from FIPER.generic.util import Table
 
 
 class Listener(AbstractListener):
@@ -109,10 +110,12 @@ class FleetHandler(object):
         """List the current car-connections"""
         print("Cars online:\n{}\n".format("\n".join(self.cars)))
 
+    @staticmethod
     def connect(self, *ips):
         """Initiate connection with the supplied ip address(es)"""
         Probe.initiate(*ips)
 
+    @staticmethod
     def probe(self, *ips):
         """Probe the supplied ip address(es)"""
         Probe.probe(*ips)
@@ -123,41 +126,26 @@ class FleetHandler(object):
 
     def sweep(self, *ips):
         """Probe the supplied ip addresses and print the formatted results"""
+
+        def get_status(dID):
+            if dID is None:
+                return "offline"
+            elif dID in self.cars:
+                if dID in self.watchers:
+                    return "streaming"
+                return "connected"
+            else:
+                return "idle"
+
         if not ips:
             ips = ".".join(self.ip.split(".")[:-1] + ["0-255"])
         IDs = dict(Probe.probe(*ips))
+        tab = Table(["IP", "ID", "status"],
+                    [max(len(unicode(v)) for v in IDs.itervalues()), 3*5, 11])
+        for IP, ID in IDs.iteritems():
+            tab.add(IP, ID, get_status(ID))
 
-        mxIDlen = max(len(unicode(v)) for v in IDs.values())
-        mxIPlen = 3+3+3+3+3
-        mxstatlen = 9
-
-        header = ("|{:^{IPlen}}|{:^{IDlen}}|{:^{statlen}}|\n".format(
-            "IP", "ID", "status", IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
-        )
-        table = ""
-        separator = ("+" + "-"*mxIPlen +
-                     "+" + "-"*mxIDlen +
-                     "+" + "-"*mxstatlen + "+\n")
-        buildme = "|{:^{IPlen}}|{:^{IDlen}}|{:^{statlen}}|\n"
-
-        for IP, ID in ((k, v) for k, v in IDs.iteritems() if v is not None):
-            status = ("connected" if ID in self.cars else "idle")
-            table += separator
-            table += (buildme.format(
-                IP, ID, status, IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
-            )
-        for IP, _ in ((k, v) for k, v in IDs.iteritems() if v is None):
-            table += separator
-            table += (buildme.format(
-                IP, "-", "offline", IPlen=mxIPlen, IDlen=mxIDlen, statlen=mxstatlen)
-            )
-
-        table = ((separator + header + table + separator)
-                 if table else
-                 "No cars on the specified region!")
-
-        self._cars_online = table
-        print(table)
+        print(tab.get())
 
     def kill_car(self, ID, *args):
         """Sends a shutdown message to a remote car, then tears down the connection"""
