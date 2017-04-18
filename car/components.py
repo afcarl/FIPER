@@ -9,12 +9,13 @@ import threading as thr
 
 import cv2
 
-from FIPER.generic import CaptureDeviceMocker, DTYPE
+from FIPER.generic.const import DTYPE, CAR_PROBE_PORT
+from FIPER.generic.util import CaptureDeviceMocker
 
 DUMMY_VIDEOFILE = ""
 
 
-class ComponentBase(object):
+class ChannelBase(object):
 
     __metaclass__ = abc.ABCMeta
 
@@ -49,7 +50,7 @@ class ComponentBase(object):
         self.worker = None
 
 
-class RCReceiver(ComponentBase):
+class RCReceiver(ChannelBase):
 
     type = "RCReceiver"
 
@@ -78,7 +79,7 @@ class RCReceiver(ComponentBase):
         print("RC: Exiting...")
 
 
-class TCPStreamer(ComponentBase):
+class TCPStreamer(ChannelBase):
 
     """
     Abstraction of the video streamer.
@@ -138,6 +139,66 @@ class TCPStreamer(ComponentBase):
             print("\rPushed {:>3} frames".format(pushed), end="")
         self.eye.close()
         print("STREAMER: Stream terminated!")
+
+
+class Idle(object):
+
+    """Before instantiating TCPCar"""
+
+    def __init__(self, myIP, myID):
+        self.IP = myIP
+        self.ID = myID
+        self.sock = None
+        self.conn = None
+        self.remote_address = None
+
+    def _setup_socket(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(1)
+        self.sock.bind((self.IP, CAR_PROBE_PORT))
+        self.sock.listen(1)
+        print("CAR-{}: Awaiting connection... Hit Ctrl-C to break!".format(self.ID))
+
+    def _read_message_from_probe(self):
+        try:
+            m = self.conn.recv(1024)
+        except socket.timeout:
+            return
+        else:
+            return m if m in ("probing", "connect") else None
+
+    def _new_connection_causes_loopbreak(self):
+        print("IDLE: probed by", self.IP)
+
+        msg = self._read_message_from_probe()
+        if msg is None:
+            print("IDLE: unknown host:", self.remote_address[0])
+            return False
+
+        print("IDLE: got msg:", msg)
+        self._respond_to_probe(msg)
+        return msg == "connect"
+
+    def _respond_to_probe(self, msg):
+        m = b"car-{} @ {}".format(self.ID, self.IP)
+        if msg in ("connect", "probing"):
+            self.conn.send(m)
+        else:
+            print("IDLE: invalid message received! Ignoring...")
+
+    def mainloop(self):
+        self._setup_socket()
+        while 1:
+            try:
+                self.conn, self.remote_address = self.sock.accept()
+            except socket.timeout:
+                pass
+            else:
+                if self._new_connection_causes_loopbreak():
+                    break
+                self.conn.close()
+                self.conn = None
+        return self.remote_address[0]
 
 
 class Eye(object):

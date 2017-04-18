@@ -13,7 +13,7 @@ def debugmain():
     """Launches the server on localhost"""
 
     server = FleetHandler("127.0.0.1")
-    server.listener.start()
+    server.listener.mainloop()
     server.console.run()
 
     time.sleep(3)

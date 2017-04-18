@@ -23,13 +23,13 @@ def readargs():
 def debugmain():
     ID = "TestCar" if len(sys.argv) == 1 else sys.argv[1]
     lightning_mcqueen = TCPCar(myID=ID, myIP="127.0.0.1")
-    lightning_mcqueen.mainloop()
+    lightning_mcqueen._listen()
 
 
 def main():
     localIP, carID = readargs()
     lightning_mcqueen = TCPCar(myID=carID, myIP=localIP)
-    lightning_mcqueen.mainloop()
+    lightning_mcqueen._listen()
 
 
 if __name__ == '__main__':

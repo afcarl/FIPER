@@ -77,15 +77,22 @@ class DirectConnection(AbstractListener):
 
 
 if __name__ == '__main__':
+    # Build connection
     IP = ("127.0.0.1" if len(sys.argv) == 1 else sys.argv[1])
     dc = DirectConnection(IP)
+
+    # Probe car
     for probe in range(3, -1, -1):
         remote_ID = Probe.probe(IP)
         print("PROBE-{}: reponse: {}".format(probe, remote_ID))
         time.sleep(3)
         if remote_ID is not None:
             break
+
+    # Connecticut
     dc.connect(IP)
+
+    # Display stream
     dc.display_stream()
     while 1:
         v = unicode(raw_input("> "))

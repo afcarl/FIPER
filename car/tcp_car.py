@@ -5,72 +5,12 @@ import time
 import socket
 
 # Project imports
-from FIPER.car.components import TCPStreamer, RCReceiver
+from FIPER.car.components import TCPStreamer, RCReceiver, Idle
+
 from FIPER.generic.messaging import Messaging
 from FIPER.generic.const import (
-    CAR_PROBE_PORT, MESSAGE_SERVER_PORT,
-    STREAM_SERVER_PORT, RC_SERVER_PORT
+    MESSAGE_SERVER_PORT, STREAM_SERVER_PORT, RC_SERVER_PORT
 )
-
-
-class Idle(object):
-
-    """Before instantiating TCPCar"""
-
-    def __init__(self, myIP, myID):
-        self.IP = myIP
-        self.ID = myID
-        self.sock = None
-        self.conn = None
-        self.remote_address = None
-
-    def _setup_socket(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(1)
-        self.sock.bind((self.IP, CAR_PROBE_PORT))
-        self.sock.listen(1)
-        print("CAR-{}: Awaiting connection... Hit Ctrl-C to break!".format(self.ID))
-
-    def _read_message_from_probe(self):
-        try:
-            m = self.conn.recv(1024)
-        except socket.timeout:
-            return
-        else:
-            return m if m in ("probing", "connect") else None
-
-    def _new_connection_causes_loopbreak(self):
-        print("IDLE: probed by", self.IP)
-
-        msg = self._read_message_from_probe()
-        if msg is None:
-            print("IDLE: unknown host:", self.remote_address[0])
-            return False
-
-        print("IDLE: got msg:", msg)
-        self._respond_to_probe(msg)
-        return msg == "connect"
-
-    def _respond_to_probe(self, msg):
-        m = b"car-{} @ {}".format(self.ID, self.IP)
-        if msg in ("connect", "probing"):
-            self.conn.send(m)
-        else:
-            print("IDLE: invalid message received! Ignoring...")
-
-    def mainloop(self):
-        self._setup_socket()
-        while 1:
-            try:
-                self.conn, self.remote_address = self.sock.accept()
-            except socket.timeout:
-                pass
-            else:
-                if self._new_connection_causes_loopbreak():
-                    break
-                self.conn.close()
-                self.conn = None
-        return self.remote_address[0]
 
 
 class TCPCar(object):
@@ -93,13 +33,34 @@ class TCPCar(object):
         self.messenger = None  # type: Messaging
         self.live = False
         self.server_ip = None
-        self.idle()
-        self.connect()
 
-    def idle(self):
-        self.server_ip = Idle(self.ip, self.ID).mainloop()
+    def mainloop(self, srvIP=None):
+        while 1:
+            self.server_ip = None
+            if srvIP is not None:
+                self.server_ip = srvIP
+                srvIP = None
+            else:
+                self._idle()  # sets server IP implicitly
+            if self.server_ip:
+                self._connect()
+            else:
+                return
+            self._listen()
 
-    def connect(self):
+    def _idle(self):
+        while 1:
+            try:
+                self.server_ip = Idle(self.ip, self.ID).mainloop()
+            except KeyboardInterrupt:
+                print("TCPCar IDLE: terminating!")
+                break
+            except Exception as E:
+                print("TCPCar IDLE: caught exception:", E.message)
+                print("TCPCar IDLE: ignoring!")
+        print("TCPCar IDLE: exiting...")
+
+    def _connect(self):
         """Establishes connections with the server"""
 
         def perform_handshake():
@@ -139,23 +100,7 @@ class TCPCar(object):
             socket.create_connection((self.server_ip, RC_SERVER_PORT), timeout=1)
         )
 
-    def out(self, *args, **kw):
-        """Wrapper for print(). Appends car's ID to every output line"""
-        sep, end = kw.get(b"sep", " "), kw.get(b"end", "\n")
-        print("CAR {}: ".format(self.ID), *args, sep=sep, end=end)
-
-    def shutdown(self, msg=None):
-        if msg is not None:
-            self.out(msg)
-        if self.streamer is not None:
-            self.streamer.teardown(1)
-        if self.messenger is not None:
-            self.messenger.send("offline")
-            time.sleep(1)
-            self.messenger.teardown()
-        self.live = False
-
-    def mainloop(self):
+    def _listen(self):
         """
         This loop wathces the messaging system and receives
         control commands from the server.
@@ -183,3 +128,20 @@ class TCPCar(object):
             else:
                 self.out("Received unknown command:", msg)
         self.out("Shutting down...")
+
+    def out(self, *args, **kw):
+        """Wrapper for print(). Appends car's ID to every output line"""
+        sep, end = kw.get(b"sep", " "), kw.get(b"end", "\n")
+        print("CAR {}: ".format(self.ID), *args, sep=sep, end=end)
+
+    def shutdown(self, msg=None):
+        if msg is not None:
+            self.out(msg)
+        if self.receiver is not None:
+            self.receiver.teardown(0)
+        if self.streamer is not None:
+            self.streamer.teardown(0)
+        if self.messenger is not None:
+            self.messenger.send("offline")
+            self.messenger.teardown(2)
+        self.live = False
