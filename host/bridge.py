@@ -1,13 +1,16 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+# stdlib imports
 import time
 import threading as thr
 from datetime import datetime
 
+# project imports
 from FIPER.generic.interfaces import interface_factory
 from FIPER.generic.abstract import (
-    AbstractListener, StreamDisplayer, Console
+    AbstractListener, AbstractConsole
 )
+from FIPER.generic.subsystems import StreamDisplayer
 from FIPER.generic.messaging import Probe
 from FIPER.generic.util import Table
 
@@ -26,7 +29,7 @@ class Listener(AbstractListener):
         if Listener.instances > 0:
             raise RuntimeError("The Singleton [Listener] is already instantiated!")
 
-        AbstractListener.__init__(self, master.ip, self.handshake)
+        AbstractListener.__init__(self, master.ip)
 
         self.master = master  # type: FleetHandler
         self.worker = None  # type: thr.Thread
@@ -49,19 +52,31 @@ class Listener(AbstractListener):
         super(Listener, self).teardown(sleep)
         self.worker = None
 
-    def handshake(self, msock):
+    def callback(self, msock):
         """
         Builds an interface and puts it into the server's appropriate
         container for later usage.
         :param msock: connected socket used for message connection
         """
-        ifc = interface_factory(msock, self.dsocket, self.rcsocket)
+        ifc = interface_factory(msock, self.dlistener, self.rclistener)
         if not ifc:
             return
         if ifc.entity_type == "car":
             self.master.cars[ifc.ID] = ifc
         else:
             self.master.clients[ifc.ID] = ifc
+
+
+class Console(AbstractConsole):
+
+    def read_cmd(self):
+        c = raw_input(self.prompt).split(" ")
+        cmd = c[0].lower()
+        if len(c) > 1:
+            args = c[1:]
+        else:
+            args = ""
+        return cmd, args
 
 
 # noinspection PyUnusedLocal
@@ -89,7 +104,7 @@ class FleetHandler(object):
         self._cars_online = "Unknown, use 'sweep' to find out!"
 
         self.listener = Listener(self)
-        self.console = Console("FIPER-Server", **{
+        self.console = AbstractConsole("FIPER-Server", **{
             "cars": self.printout_cars,
             "kill": self.kill_car,
             "watch": self.watch_car,

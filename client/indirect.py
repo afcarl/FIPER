@@ -2,10 +2,9 @@ from __future__ import print_function, absolute_import, unicode_literals
 
 import socket
 
-from FIPER.generic.messaging import Messaging
 from FIPER.generic.const import (
-    MESSAGE_SERVER_PORT, STREAM_SERVER_PORT, RC_SERVER_PORT
-)
+    MESSAGE_SERVER_PORT, STREAM_SERVER_PORT, RC_SERVER_PORT)
+from FIPER.generic.messaging import Messaging
 
 
 class ServerConnection(object):
@@ -38,8 +37,9 @@ class ServerConnection(object):
         return cars.split(", ")
 
     def request_car_connection(self, carID):
-        status = self._sendcmd(b"cmd|connect {}".format(carID), 3)
-        print("DIRECT_CONN: status received:", status)
+        framestring = self._sendcmd(b"cmd|connect {}".format(carID), 3)
+        frameshape = framestring.split("x")
+        print("DIRECT_CONN: frameshape received:", framestring)
 
     def observe_someone_else(self, ID):
         status = self._sendcmd(b"cmd|watch {}".format(ID), 3)

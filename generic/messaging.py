@@ -5,7 +5,7 @@ import time
 import socket
 import threading as thr
 
-from FIPER.generic import CAR_PROBE_PORT
+from .const import CAR_PROBE_PORT
 
 
 class Messaging(object):

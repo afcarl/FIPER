@@ -1,12 +1,10 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
 # STDLIB imports
-import time
 import socket
 
 # Project imports
 from FIPER.car.components import TCPStreamer, RCReceiver, Idle
-
 from FIPER.generic.messaging import Messaging
 from FIPER.generic.const import (
     MESSAGE_SERVER_PORT, STREAM_SERVER_PORT, RC_SERVER_PORT

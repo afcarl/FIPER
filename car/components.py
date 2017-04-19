@@ -1,5 +1,6 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+# stdlib imports
 import os
 import abc
 import time
@@ -7,10 +8,12 @@ import socket
 import warnings
 import threading as thr
 
+# 3rd party imports
 import cv2
 
-from FIPER.generic.const import DTYPE, CAR_PROBE_PORT
+# project imports
 from FIPER.generic.util import CaptureDeviceMocker
+from FIPER.generic.const import DTYPE, CAR_PROBE_PORT
 
 DUMMY_VIDEOFILE = ""
 

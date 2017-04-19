@@ -5,8 +5,9 @@ import time
 
 from FIPER.generic.interfaces import interface_factory
 from FIPER.generic.abstract import (
-    AbstractListener, StreamDisplayer
+    AbstractListener
 )
+from generic.subsystems import StreamDisplayer
 from FIPER.generic.messaging import Probe
 
 
@@ -16,19 +17,19 @@ class DirectConnection(AbstractListener):
         """
         :param myIP: the local IP address
         """
-        super(DirectConnection, self).__init__(myIP, self._listener_callback)
+        super(DirectConnection, self).__init__(myIP)
         self.target = None
         self.interface = None
         self.streamer = None  # type: StreamDisplayer
         self.streaming = False
 
-    def _listener_callback(self, msock):
+    def callback(self, msock):
         """
         This method is called by AbstractListener.mainloop() on the newly
         created message-connection socket which creates the messaging
         channel between the remote car and this class.
         """
-        self.interface = interface_factory(msock, self.dsocket, self.rcsocket)
+        self.interface = interface_factory(msock, self.dlistener, self.rclistener)
         self.running = False  # Stop the mainloop in AbstractListener
 
     def connect(self, ip):

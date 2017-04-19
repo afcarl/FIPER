@@ -1,9 +1,30 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+from threading import Thread
+
 import numpy as np
 
 from .const import DTYPE
 from .messaging import Messaging
+from .abstract import AbstractEntity, AbstractConsole
+from generic.subsystems import Forwarder
+
+
+class _Commander(Thread, AbstractConsole):
+
+    def __init__(self, messenger, master_name, **commands):
+        Thread.__init__(self, name=master_name + "-Commander")
+        AbstractConsole.__init__(self, master_name, **commands)
+        self.messenger = messenger  # type: Messaging
+
+    def read_cmd(self):
+        found = self.messenger.recv(1, timeout=1)
+        if found is None:
+            return "idle", ""
+        found = found.split(" ")
+        cmd = found[0].lower()
+        args = found[1:] if len(found) > 1 else ""
+        return cmd, args
 
 
 def interface_factory(msock, dsock, rcsock):
@@ -68,75 +89,25 @@ def interface_factory(msock, dsock, rcsock):
     if not result:
         return
     if entity_type == "car":
-        frameshape = result[2]
+        frameshape = result[-1]
         if not valid_frame_shape(frameshape):
             return
-        if rcsock is None:
-            print("INTERFACE: no rcsocket provided :(")
         ifc = CarInterface(
             ID, dsock, rcsock, messenger, frameshape
         )
     elif entity_type == "client":
+        status = result[-1]
+        if status not in ("active", "passive"):
+            return
         ifc = ClientInterface(
-            ID, dsock, rcsock, messenger
+            ID, dsock, rcsock, messenger, status
         )
     else:
         raise RuntimeError("Unknown entity type: " + entity_type)
     return ifc
 
 
-class NetworkEntity(object):
-    """
-    Base class for all connections,
-    where Entity may be some remote network entity
-    (like a car or a client).
-    
-    Groups together the following concepts:
-    - a message-passing TCP channel implemented in generic.messaging
-    - a one-way data connection, used to read or forward a data stream
-    """
-
-    entity_type = ""
-
-    def __init__(self, ID, dlistener, rclistener, messenger):
-        self.ID = ID
-        self.messenger = messenger  # type: Messaging
-        self.send = messenger.send
-        self.recv = messenger.recv
-        self.remote_ip = None
-        self._accept_connection_and_validate_ip_addresses(dlistener, "Data")
-        self._accept_connection_and_validate_ip_addresses(rclistener, "RC")
-
-    def _accept_connection_and_validate_ip_addresses(self, sock, typ):
-        conn, addr = sock.accept()
-        self.out("{} connection from {}:{}".format(typ, *addr))
-        if self.remote_ip:
-            if self.remote_ip != addr[0]:
-                msg = "Warning! Difference in inbound connection addresses!\n"
-                msg += ("Messaging is on {}\nData is on {}\nRC is on {}"
-                        .format(self.messenger.sock.getsockname()[0],
-                                self.remote_ip, addr[0]))
-                raise RuntimeError(msg)
-        else:
-            self.remote_ip = addr[0]
-        if typ == "Data":
-            self.dsocket = conn
-        else:
-            self.rcsocket = conn
-
-    def out(self, *args, **kw):
-        """Wrapper for print(). Appends car's ID to every output line"""
-        # noinspection PyTypeChecker
-        sep, end = kw.get("sep", " "), kw.get("end", "\n")
-        print("{}IFACE {}: ".format(self.entity_type.upper(), self.ID),
-              *args, sep=sep, end=end)
-
-    def teardown(self, sleep):
-        self.messenger.teardown(sleep)
-        self.dsocket.close()
-
-
-class CarInterface(NetworkEntity):
+class CarInterface(AbstractEntity):
 
     """
     Abstraction of a Car-Server connection.
@@ -158,12 +129,6 @@ class CarInterface(NetworkEntity):
         super(CarInterface, self).__init__(ID, dlistener, rclistener, messenger)
         self.out("Frameshape:", frameshape)
         self.frameshape = frameshape
-
-    def bytestream(self):
-        """
-        Simple generator yielding raw bytes from the data socket
-        """
-        yield self.dsocket.recv(1024)
 
     def framestream(self):
         """
@@ -190,7 +155,7 @@ class CarInterface(NetworkEntity):
         self.out("Teardown finished!")
 
 
-class ClientInterface(NetworkEntity):
+class ClientInterface(AbstractEntity):
 
     """
     Abstraction of a Client-Server connection.
@@ -201,19 +166,55 @@ class ClientInterface(NetworkEntity):
 
     entity_type = "client"
 
-    def __init__(self, ID, dlistener, rclistener, messenger):
+    def __init__(self, ID, dlistener, rclistener, messenger, state):
         """
         :param ID: the client's unique ID
         :param dlistener: serving TCP socket on STREAM_SERVER_PORT
         :param messenger: Messaging object
         """
         super(ClientInterface, self).__init__(ID, dlistener, rclistener, messenger)
-        self.worker = None
-        self.target_carinterface = None
-        self.streaming = False
+        self.stream_worker = None
+        self.rc_worker = None
+        self.carifc = None
+        self.state = state
+        self.commander = _Commander(
+            messenger, master_name="CarIfc-{}".format(ID),
+            shutdown=self.teardown,
+            cars=lambda: "Lightning McQueen",
+            connect=self.attach,
+            disconnect=self.detach
+        )
+        self.commander.start()
 
-    def teardown(self, sleep=3):
-        self.streaming = False
+    def attach(self, carifc):
+        if self.carifc is not None:
+            print("ClientInterface already connected to", self.carifc.ID)
+            return
+        self.carifc = carifc
+        self.stream_worker = Forwarder(carifc.dsocket, self.dsocket, name="CliFace-Stream")
+        self.rc_worker = Forwarder(carifc.rcsocket, self.rcsocket, name="CliFace-RC")
+        self.send(b"x".join(bytes(d) for d in carifc.frameshape))
+
+    def forward(self):
+        if self.carifc is None:
+            print("No CarInterface connected!")
+            return
+        self.stream_worker.start()
+        if self.state == "active":
+            self.rc_worker.start()
+
+    def detach(self):
+        if self.carifc is None:
+            return
+        self.stream_worker.teardown(0)
+        self.rc_worker.teardown(1)
+        self.carifc = None
+
+    def teardown(self, sleep=1):
+        if self.carifc:
+            self.detach()
+        self.commander.teardown()
         super(ClientInterface, self).teardown(sleep)
-        self.worker = None
-        self.out("Teardown finished!")
+
+    def __del__(self):
+        self.teardown()
