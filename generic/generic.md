@@ -2,7 +2,7 @@
 Submodules are imported by \_\_init\_\_.py, but this will be removed.
 See PEP 20 (The Zen of Pyhon), "Explicit is better than implicit."
 
-##abstract.py
+## abstract.py
 
 Some high-level components, which are used commonly between entities.
 - **Console** is the implementation of a server console. Its constructor expects a string: callable
@@ -15,7 +15,7 @@ It is used by client and server.
 - **StreamDisplayer**: displays the stream of a CarInterface.
 It is used by client and server.
 
-##const.py
+## const.py
 
 Some commonly used constants are defined here:
 - Port numbers for channels and protocols:
@@ -26,11 +26,11 @@ Some commonly used constants are defined here:
 - the **DTYPE**, used for data communication.
 - **TICK** is deprecated, **FPS** will be used.
 
-##echo.py
+## echo.py
 
 **Echo** mocks the functionality of a car with probing protocol.
 
-##interfaces.py
+## interfaces.py
 
 This defines the base interface class and various derived classes for entities to interface with each
 other.
@@ -40,7 +40,7 @@ Initializes and returns the appropriate object.
 - **CarInterface** adds the interface for car entities.
 - **ClientInterface** adds the interface for client entities.
 
-##messaging.py
+## messaging.py
 
 Two classes are defined here:
 - **Messenger** groups together functionalities used in the messaging channel.
@@ -48,11 +48,11 @@ It is used by all entity types (server, client and car).
 - **Probe** is a static/mixin class, which implements the server-side of the probing protocol.
 It is used by client and server.
 
-##routines.py
+## routines.py
 
 Commonly used functions.
 
-##util.py
+## util.py
 
 The miscellaneous stuff:
 - **CaptureDeviceMocker** mocks cv2's VideoCapture and streams white noise.
