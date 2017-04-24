@@ -39,6 +39,7 @@ class TCPCar(object):
                 self.server_ip = srvIP
                 srvIP = None
             else:
+                self.out("No server IP supplied, going into IDLE state...")
                 self._idle()  # sets server IP implicitly
             if self.server_ip:
                 self._connect()
@@ -51,12 +52,11 @@ class TCPCar(object):
             try:
                 self.server_ip = Idle(self.ip, self.ID).mainloop()
             except KeyboardInterrupt:
-                print("TCPCar IDLE: terminating!")
+                self.out("IDLE terminating!")
                 break
             except Exception as E:
-                print("TCPCar IDLE: caught exception:", E.message)
-                print("TCPCar IDLE: ignoring!")
-        print("TCPCar IDLE: exiting...")
+                self.out("IDLE caught exception: {} -> ignoring!".format(E.message))
+        self.out("IDLE exiting...")
 
     def _connect(self):
         """Establishes connections with the server"""
@@ -82,7 +82,7 @@ class TCPCar(object):
 
         def validate_response(hello):
             if hello != "HELLO":
-                print("Wrong handshake from server! Shutting down!")
+                self.out("Wrong handshake from server! Shutting down!")
                 raise RuntimeError("Handshake error!")
 
         # Function body starts here {just to be clear :)}
@@ -130,7 +130,7 @@ class TCPCar(object):
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
         sep, end = kw.get(b"sep", " "), kw.get(b"end", "\n")
-        print("CAR {}: ".format(self.ID), *args, sep=sep, end=end)
+        print("CAR {}:".format(self.ID), *args, sep=sep, end=end)
 
     def shutdown(self, msg=None):
         if msg is not None:

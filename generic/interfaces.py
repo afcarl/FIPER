@@ -7,7 +7,7 @@ import numpy as np
 from .const import DTYPE
 from .messaging import Messaging
 from .abstract import AbstractEntity, AbstractConsole
-from generic.subsystems import Forwarder
+from .subsystems import Forwarder
 
 
 class _Commander(Thread, AbstractConsole):

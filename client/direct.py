@@ -3,11 +3,11 @@ from __future__ import print_function, unicode_literals, absolute_import
 import sys
 import time
 
-from FIPER.generic.interfaces import interface_factory
+from FIPER.generic.interfaces import interface_factory, CarInterface
 from FIPER.generic.abstract import (
     AbstractListener
 )
-from generic.subsystems import StreamDisplayer
+from FIPER.generic.subsystems import StreamDisplayer
 from FIPER.generic.messaging import Probe
 
 
@@ -77,28 +77,52 @@ class DirectConnection(AbstractListener):
         super(DirectConnection, self).teardown(sleep)
 
 
-if __name__ == '__main__':
-    # Build connection
-    IP = ("127.0.0.1" if len(sys.argv) == 1 else sys.argv[1])
-    dc = DirectConnection(IP)
+def testrun():
+    from random import choice
 
-    # Probe car
-    for probe in range(3, -1, -1):
-        remote_ID = Probe.probe(IP)
-        print("PROBE-{}: reponse: {}".format(probe, remote_ID))
-        time.sleep(3)
-        if remote_ID is not None:
-            break
+    def build_connection():
+        IP = ("127.0.0.1" if len(sys.argv) == 1 else sys.argv[1])
+        dc = DirectConnection(IP)
 
-    # Connecticut
-    dc.connect(IP)
+        # Probe car
+        for probe in range(3, -1, -1):
+            remote_ID = Probe.probe(IP)
+            print("PROBE-{}: reponse: {}".format(probe, remote_ID))
+            time.sleep(3)
+            if remote_ID is not None:
+                break
 
-    # Display stream
-    dc.display_stream()
-    while 1:
-        v = unicode(raw_input("> "))
-        if v == "quit":
-            dc.stop_stream()
-            dc.teardown(3)
-            break
+        # Connecticut
+        dc.connect(IP)
+        return dc
+
+    def start_display(dc):
+        dc.display_stream()
+        while 1:
+            v = unicode(raw_input("> "))
+            if v == "quit":
+                dc.stop_stream()
+                dc.teardown(3)
+                break
+
+    def test_rc(dc):
+        msgs = b">", b"<", b"A", b"V"
+        while 1:
+            try:
+                chc = choice(msgs)
+                dc.interface.rcsocket.send(chc)
+                time.sleep(0.5)
+                print(chc, end="")
+            except Exception as E:
+                print("RC Test caught exception:", E.message)
+                break
+        print("RC Test exiting...")
+
+    dcinst = build_connection()
+    # start_display(dcinst)
+    test_rc(dcinst)
     print(" -- END PROGRAM -- ")
+
+
+if __name__ == '__main__':
+    testrun()

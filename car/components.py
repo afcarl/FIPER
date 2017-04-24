@@ -160,7 +160,7 @@ class Idle(object):
         self.sock.settimeout(1)
         self.sock.bind((self.IP, CAR_PROBE_PORT))
         self.sock.listen(1)
-        print("CAR-{}: Awaiting connection... Hit Ctrl-C to break!".format(self.ID))
+        print("IDLE: Awaiting connection... Hit Ctrl-C to break!".format(self.ID))
 
     def _read_message_from_probe(self):
         try:
