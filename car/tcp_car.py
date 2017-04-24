@@ -33,19 +33,30 @@ class TCPCar(object):
         self.server_ip = None
 
     def mainloop(self, srvIP=None):
+        """
+        This method needs some more love
+        
+        :param srvIP: the IP address of the server 
+        """
+        self.server_ip = None
+        if srvIP is not None:
+            self.server_ip = srvIP
+        else:
+            self.out("No server IP supplied, going into IDLE state...")
+            self._idle()  # sets server IP implicitly
+
         while 1:
-            self.server_ip = None
-            if srvIP is not None:
-                self.server_ip = srvIP
-                srvIP = None
-            else:
-                self.out("No server IP supplied, going into IDLE state...")
-                self._idle()  # sets server IP implicitly
             if self.server_ip:
-                self._connect()
+                try:
+                    self._connect()
+                    self._listen()
+                except Exception as E:
+                    self.out("mainloop caught exception: {}. Exiting!".format(E.message))
+                    self.shutdown()
+                    return 
             else:
+                self.shutdown()
                 return
-            self._listen()
 
     def _idle(self):
         while 1:
@@ -54,8 +65,10 @@ class TCPCar(object):
             except KeyboardInterrupt:
                 self.out("IDLE terminating!")
                 break
-            except Exception as E:
-                self.out("IDLE caught exception: {} -> ignoring!".format(E.message))
+            except Exception:
+                raise
+            else:
+                break
         self.out("IDLE exiting...")
 
     def _connect(self):
@@ -97,6 +110,7 @@ class TCPCar(object):
         self.receiver.connect(
             socket.create_connection((self.server_ip, RC_SERVER_PORT), timeout=1)
         )
+        self.receiver.start()
 
     def _listen(self):
         """

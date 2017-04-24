@@ -107,16 +107,22 @@ def testrun():
 
     def test_rc(dc):
         msgs = b">", b"<", b"A", b"V"
+        choices = []
         while 1:
             try:
                 chc = choice(msgs)
                 dc.interface.rcsocket.send(chc)
-                time.sleep(0.5)
-                print(chc, end="")
+                time.sleep(0.1)
+            except KeyboardInterrupt:
+                break
             except Exception as E:
                 print("RC Test caught exception:", E.message)
                 break
+            if len(choices) >= 50:
+                print("".join(choices))
+                choices = []
         print("RC Test exiting...")
+        dc.teardown(1)
 
     dcinst = build_connection()
     # start_display(dcinst)

@@ -17,6 +17,9 @@ class CaptureDeviceMocker(object):
     def read():
         return True, white_noise(DUMMY_FRAMESIZE)
 
+    def release(self):
+        pass
+
 
 class Table(object):
 

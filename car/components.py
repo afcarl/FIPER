@@ -39,6 +39,7 @@ class ChannelBase(object):
                   .format(self.type))
             return
         if not self.running:
+            print("Starting new {} thread!".format(self.type))
             self.worker = thr.Thread(target=self.run, name="Streamer")
             self.worker.start()
 
@@ -55,6 +56,11 @@ class ChannelBase(object):
 
 class RCReceiver(ChannelBase):
 
+    """
+    Handles the RC command receiving.
+    Runs in separate thread, started in TCPCar._connect()
+    """
+
     type = "RCReceiver"
 
     def __init__(self):
@@ -63,11 +69,12 @@ class RCReceiver(ChannelBase):
         print("RC: online")
 
     def run(self):
+        self.running = True
         while self.running:
             try:
                 data = self.sock.recv(1024)
             except socket.timeout:
-                pass
+                pass  # print("RC: Timed out!")
             else:
                 data = unicode(data)
                 print("RC:", data)
@@ -88,6 +95,9 @@ class TCPStreamer(ChannelBase):
     Abstraction of the video streamer.
     Factored out from TCPCar, this class enables
     switching the stream on and off in a managed way.
+    
+    Runs in a separate thread, started in TCPCar._listen()
+    on a remote command from the controller.
     """
 
     type = "TCPStreamer"
