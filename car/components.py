@@ -286,7 +286,7 @@ class Handshake(object):
     @staticmethod
     def _send_introduction(streamer, messenger):
         introduction = "HELLO;" + streamer.frameshape
-        for i in range(3):
+        for i in range(10):
             print("HANDSHAKE: Sending introduction:", introduction)
             messenger.send(introduction.encode())
             time.sleep(0.5)

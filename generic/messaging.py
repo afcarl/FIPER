@@ -35,7 +35,7 @@ class Messaging(object):
         self.running = True
         self.job_in.start()
         self.job_out.start()
-        print("Messenger workers started!")
+        print("MESSENGER: workers started!")
 
     @classmethod
     def connect_to(cls, IP, tag=b"", timeout=1):

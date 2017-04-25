@@ -21,7 +21,7 @@ class InterfaceBuilder(object):
     has to be able to connect to a remote car on the network.
     """
 
-    def __init__(self, msock, dlistener, rclistener):
+    def __init__(self, msock, dlistener, rclistener, recv_retries=10):
         """
         :param msock: connected socket, connected to a remote car
         :param dlistener: unconnected server socket awaiting data connections
@@ -36,6 +36,7 @@ class InterfaceBuilder(object):
         self.etype = None
         self.ID = None
         self.info = None
+        self.retries = recv_retries
 
     def get(self):
         if not self._read_introduction():
@@ -57,7 +58,7 @@ class InterfaceBuilder(object):
             self.introduction = self.messenger.recv(timeout=1)
             print("IFC_BUILDER: got introduction:", self.introduction)
             tries += 1
-            if tries > 3:
+            if tries > self.retries:
                 print("IFC_BUILDER: didn't receive an introduction!")
                 return False
         return True
