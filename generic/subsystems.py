@@ -12,9 +12,7 @@ class StreamDisplayer(thr.Thread):
     in a separate thread.
     """
 
-    # TODO: handle the cv2 display's close (X) button...
-    # TODO: abstract this class. Discard the CarInterface
-    # and remake this with a generator function as dependency
+    # TODO: abstract this class. Discard the CarInterface dependecy
 
     def __init__(self, carint):
         """
@@ -36,13 +34,14 @@ class StreamDisplayer(thr.Thread):
             # self.interface.out("\rRecieved {:>4} frames of shape {}"
             #                    .format(i, pic.shape), end="")
             cv2.imshow("{} Stream".format(self.interface.ID), pic)
-            cv2.waitKey(1)
-            if not self.running:
+            keypress = cv2.waitKey(10)
+            if not self.running or keypress == 27:
                 break
         cv2.destroyWindow("{} Stream".format(self.interface.ID))
         print("STREAM_DISPLAYER: Exiting...")
+        self.teardown(0)
 
-    def teardown(self, sleep=1):
+    def teardown(self, sleep=0):
         self.running = False
         time.sleep(sleep)
 

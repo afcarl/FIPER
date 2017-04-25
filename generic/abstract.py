@@ -8,7 +8,7 @@ import subprocess
 from .routines import srvsock
 
 
-class AbstractEntity(object):
+class AbstractInterface(object):
 
     """
     Base class for all connections,
@@ -30,8 +30,14 @@ class AbstractEntity(object):
         self.send = messenger.send
         self.recv = messenger.recv
         self.remote_ip = None
-        self._accept_connection_and_validate_ip_addresses(dlistener, "Data")
-        self._accept_connection_and_validate_ip_addresses(rclistener, "RC")
+        self.initiated = False
+        try:
+            self._accept_connection_and_validate_ip_addresses(dlistener, "Data")
+            self._accept_connection_and_validate_ip_addresses(rclistener, "RC")
+        except socket.timeout:
+            self.initiated = False
+        else:
+            self.initiated = True
 
     def _accept_connection_and_validate_ip_addresses(self, sock, typ):
         conn, addr = sock.accept()
@@ -60,6 +66,7 @@ class AbstractEntity(object):
     def teardown(self, sleep):
         self.messenger.teardown(sleep)
         self.dsocket.close()
+        self.rcsocket.close()
 
 
 class AbstractConsole(object):
@@ -98,8 +105,9 @@ class AbstractConsole(object):
             self.commands["help"] = self.help
         if "clear" not in self.commands:
             self.commands["clear"] = lambda: subprocess.call("clear", shell=True)
-        if "shutdown" not in commands:
-            raise RuntimeError("Please provide a shutdown command!")
+        if "shutdown" not in self.commands:
+            print("No shutdown command provided!")
+            self.commands["shutdown"] = self.teardown
         self.running = False
 
     def help(self, *args):
@@ -123,7 +131,7 @@ class AbstractConsole(object):
         mfx = "[{}]".format(self.status_tag) if self.status_tag else ""
         return " ".join((self.master_name, mfx, "> "))
 
-    def run(self):
+    def mainloop(self):
         """
         Server console main loop
         """
@@ -148,7 +156,7 @@ class AbstractConsole(object):
         raise NotImplementedError
 
     def cmd_parser(self, cmd, *args):
-        if cmd[0] not in self.commands:
+        if cmd not in self.commands:
             print("CONSOLE: Unknown command:", cmd)
         else:
             self.commands[cmd](*args)

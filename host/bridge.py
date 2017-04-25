@@ -6,7 +6,7 @@ import threading as thr
 from datetime import datetime
 
 # project imports
-from FIPER.generic.interfaces import interface_factory
+from FIPER.generic.interfaces import InterfaceBuilder
 from FIPER.generic.abstract import (
     AbstractListener, AbstractConsole
 )
@@ -43,7 +43,7 @@ class Listener(AbstractListener):
         self.run is inherited from AbstractListener
         """
         if self.worker is not None:
-            print("{}-Attempted start while already running!")
+            print("ABS_LISTENER: Attempted start while already running!")
             return
         self.worker = thr.Thread(target=self.mainloop, name="Server-Listener")
         self.worker.start()
@@ -58,7 +58,8 @@ class Listener(AbstractListener):
         container for later usage.
         :param msock: connected socket used for message connection
         """
-        ifc = interface_factory(msock, self.dlistener, self.rclistener)
+        ifcb = InterfaceBuilder(self.mlistener, self.dlistener, self.rclistener)
+        ifc = ifcb.get()
         if not ifc:
             return
         if ifc.entity_type == "car":
@@ -75,7 +76,7 @@ class Console(AbstractConsole):
         if len(c) > 1:
             args = c[1:]
         else:
-            args = ""
+            args = []
         return cmd, args
 
 
@@ -95,34 +96,44 @@ class FleetHandler(object):
     and to coordinate the shutdown of the cars on this side, etc.
     """
 
+    the_one = None
+
     def __init__(self, myIP):
         self.clients = {}
         self.ip = myIP
         self.cars = {}
         self.watchers = {}
         self.since = datetime.now()
-        self._cars_online = "Unknown, use 'sweep' to find out!"
 
         self.listener = Listener(self)
-        self.console = Console("FIPER-Server", **{
-            "cars": self.printout_cars,
-            "kill": self.kill_car,
-            "watch": self.watch_car,
-            "unwatch": self.stop_watch,
-            "shutdown": self.shutdown,
-            "status": self.report,
-            "message": self.message,
-            "probe": self.probe,
-            "connect": self.connect,
-            "sweep": self.sweep
-        })
-
         self.status = "Idle"
+        self.console = Console(
+            master_name="FIPER-Server",
+            status_tag=self.status,
+            commands_dict={
+                "cars": self.printout_cars,
+                "kill": self.kill_car,
+                "watch": self.watch_car,
+                "unwatch": self.stop_watch,
+                "shutdown": self.shutdown,
+                "status": self.report,
+                "message": self.message,
+                "probe": self.probe,
+                "connect": self.connect,
+                "sweep": self.sweep
+            }
+        )
+
+        self.listener.start()  # start listening for incomming connections
         print("SERVER: online")
+        print("SERVER: server.mainloop() to launch the console!")
 
     def printout_cars(self, *args):
         """List the current car-connections"""
         print("Cars online:\n{}\n".format("\n".join(self.cars)))
+
+    def mainloop(self):
+        self.console.mainloop()
 
     @staticmethod
     def connect(*ips):
@@ -236,6 +247,7 @@ class FleetHandler(object):
             rounds += 1
         else:
             print("SERVER: All cars shut down correctly!")
+
         print("SERVER: Exiting...")
 
     def report(self, *args):
@@ -247,3 +259,17 @@ class FleetHandler(object):
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
         repchain += "Cars online: {}\n".format(len(self.cars))
         print("\n" + repchain + "\n")
+
+    def __enter__(self, srvinstance):
+        """Context enter method"""
+        if FleetHandler.the_one is not None:
+            FleetHandler.the_one = srvinstance
+        else:
+            raise RuntimeError("Only one can remain!")
+        return srvinstance
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context exit method, ensures proper shutdown"""
+        if FleetHandler.the_one is not None:
+            FleetHandler.the_one.shutdown()
+            FleetHandler.the_one = None

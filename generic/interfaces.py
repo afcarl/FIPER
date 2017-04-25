@@ -6,28 +6,11 @@ import numpy as np
 
 from .const import DTYPE
 from .messaging import Messaging
-from .abstract import AbstractEntity, AbstractConsole
+from .abstract import AbstractInterface, AbstractConsole
 from .subsystems import Forwarder
 
 
-class _Commander(Thread, AbstractConsole):
-
-    def __init__(self, messenger, master_name, **commands):
-        Thread.__init__(self, name=master_name + "-Commander")
-        AbstractConsole.__init__(self, master_name, **commands)
-        self.messenger = messenger  # type: Messaging
-
-    def read_cmd(self):
-        found = self.messenger.recv(1, timeout=1)
-        if found is None:
-            return "idle", ""
-        found = found.split(" ")
-        cmd = found[0].lower()
-        args = found[1:] if len(found) > 1 else ""
-        return cmd, args
-
-
-def interface_factory(msock, dsock, rcsock):
+class InterfaceBuilder(object):
 
     """
     Coordinates the handshake between a network entity
@@ -35,79 +18,92 @@ def interface_factory(msock, dsock, rcsock):
     This abstraction is required because either a central
     server (FleetHandler, see host/bridge.py) or a
     standalone client (DirectConnection, see client/direct.py
-    has to be able to control a remote car on the network.
-    
-    :param msock: connected socket, connected to a remote car
-    :param dsock: unconnected server socket awaiting data connections
-    :param rcsock: unconnected server socket awaiting RC connections
+    has to be able to connect to a remote car on the network.
     """
 
-    def valid_introduction(intr):
-        if ":HELLO;" in intr:
-            return True
-        print("LISTENER: invalid introduction!")
-        return False
+    def __init__(self, msock, dlistener, rclistener):
+        """
+        :param msock: connected socket, connected to a remote car
+        :param dlistener: unconnected server socket awaiting data connections
+        :param rclistener: unconnected server socket awaiting RC connections
+        """
 
-    def valid_frame_shape(fs):
-        if len(fs) < 2 or len(fs) > 3:
-            errmsg = ("Wrong number of dimensions in received frameshape definition.\n" +
-                      "Got {} from {}!".format(ID, frameshape))
-            print(errmsg)
-            return False
+        self.messenger = Messaging(msock)
+        self.dlistener = dlistener
+        self.rclistener = rclistener
+        self.introduction = None
+        self.parsed = None
+        self.etype = None
+        self.ID = None
+        self.info = None
+
+    def get(self):
+        if not self._read_introduction():
+            return
+        if not self._valid_introduction():
+            return
+        self.messenger.send(b"HELLO")
+        if not self._parse_introductory_string():
+            return
+        return self._instantiate_interface()
+
+    @property
+    def _args(self):
+        return self.ID, self.dlistener, self.rclistener, self.messenger, self.info
+
+    def _read_introduction(self):
+        tries = 0
+        while self.introduction is None:
+            self.introduction = self.messenger.recv(timeout=1)
+            print("IFC_BUILDER: got introduction:", self.introduction)
+            tries += 1
+            if tries > 3:
+                print("IFC_BUILDER: didn't receive an introduction!")
+                return False
         return True
 
-    def parse_introductory_string(s):
+    def _valid_introduction(self):
+        if ":HELLO;" in self.introduction:
+            return True
+        print("IFC_BUILDER: invalid introduction!")
+        return False
+
+    def _valid_frame_shape(self, framestring):
+        frameshape = [int(sp) for sp in framestring.split("x")]
+        if len(frameshape) < 2 or len(frameshape) > 3:
+            errmsg = ("Wrong number of dimensions in frameshape definition.\n" +
+                      "Got {} from {}!".format(self.ID, frameshape))
+            print(errmsg)
+            return False
+        self.info = frameshape
+        return True
+
+    def _instantiate_interface(self):
+        interface = {"car": _CarInterface(*self._args),
+                     "client": _ClientInterface(*self._args)
+                     }.get(self.etype, None)
+        if interface is None:
+            print("IFC_BUILDER: unable to establish connection with {} of type {}:"
+                  .format(self.ID, self.etype))
+            return
+        return interface
+
+    def _parse_introductory_string(self):
         """
         Introduction looks like this:
         {entity_type}-{ID}:HELLO;{frY}x{frX}x{frC}
         """
 
-        s = s.split(":HELLO;")
-        etype, remoteID = s[0].split("-")
+        handshake, info = self.introduction.split(":HELLO;")
+        self.etype, self.ID = handshake.split("-")
 
-        if etype == "car":
-            try:
-                shp = [int(sp) for sp in s[1].split("x")]
-            except ValueError:
-                print("LISTENER: Received wrong frameshape definition from {}!\nGot {}"
-                      .format(remoteID, introduction[1]))
-                return None
-        else:
-            shp = None
-        return etype, remoteID, shp
-
-    messenger = Messaging(msock)
-    introduction = None
-    while introduction is None:
-        introduction = messenger.recv(timeout=1)
-        print("IFC_FACTORY: got introduction:", introduction)
-    if not valid_introduction(introduction):
-        return
-    messenger.send(b"HELLO")
-    result = parse_introductory_string(introduction)
-    entity_type, ID = result[:2]
-    if not result:
-        return
-    if entity_type == "car":
-        frameshape = result[-1]
-        if not valid_frame_shape(frameshape):
-            return
-        ifc = CarInterface(
-            ID, dsock, rcsock, messenger, frameshape
-        )
-    elif entity_type == "client":
-        status = result[-1]
-        if status not in ("active", "passive"):
-            return
-        ifc = ClientInterface(
-            ID, dsock, rcsock, messenger, status
-        )
-    else:
-        raise RuntimeError("Unknown entity type: " + entity_type)
-    return ifc
+        if self.etype == "car":
+            if not self._valid_frame_shape(info):
+                return False
+        return True
 
 
-class CarInterface(AbstractEntity):
+class _CarInterface(AbstractInterface):
 
     """
     Abstraction of a Car-Server connection.
@@ -126,7 +122,7 @@ class CarInterface(AbstractEntity):
         :param frameshape: string descriping the video frame shape: {}x{}x{}
         """
 
-        super(CarInterface, self).__init__(ID, dlistener, rclistener, messenger)
+        super(_CarInterface, self).__init__(ID, dlistener, rclistener, messenger)
         self.out("Frameshape:", frameshape)
         self.frameshape = frameshape
 
@@ -151,11 +147,12 @@ class CarInterface(AbstractEntity):
             data = data[datalen:]
 
     def teardown(self, sleep=3):
-        super(CarInterface, self).teardown(sleep)
+        self.send("shutdown")
+        super(_CarInterface, self).teardown(sleep)
         self.out("Teardown finished!")
 
 
-class ClientInterface(AbstractEntity):
+class _ClientInterface(AbstractInterface):
 
     """
     Abstraction of a Client-Server connection.
@@ -172,12 +169,12 @@ class ClientInterface(AbstractEntity):
         :param dlistener: serving TCP socket on STREAM_SERVER_PORT
         :param messenger: Messaging object
         """
-        super(ClientInterface, self).__init__(ID, dlistener, rclistener, messenger)
+        super(_ClientInterface, self).__init__(ID, dlistener, rclistener, messenger)
         self.stream_worker = None
         self.rc_worker = None
         self.carifc = None
         self.state = state
-        self.commander = _Commander(
+        self.commander = self.__class__.Commander(
             messenger, master_name="CarIfc-{}".format(ID),
             shutdown=self.teardown,
             cars=lambda: "Lightning McQueen",
@@ -214,7 +211,28 @@ class ClientInterface(AbstractEntity):
         if self.carifc:
             self.detach()
         self.commander.teardown()
-        super(ClientInterface, self).teardown(sleep)
+        super(_ClientInterface, self).teardown(sleep)
 
     def __del__(self):
         self.teardown()
+
+    class Commander(Thread, AbstractConsole):
+
+        """
+        Nested class, which defines the command parser.
+        Commands are received from the client's messaging channel.
+        """
+
+        def __init__(self, messenger, master_name, **commands):
+            Thread.__init__(self, name=master_name + "-Commander")
+            AbstractConsole.__init__(self, master_name, **commands)
+            self.messenger = messenger  # type: Messaging
+
+        def read_cmd(self):
+            found = self.messenger.recv(1, timeout=1)
+            if found is None:
+                return "idle", ""
+            found = found.split(" ")
+            cmd = found[0].lower()
+            args = found[1:] if len(found) > 1 else ""
+            return cmd, args

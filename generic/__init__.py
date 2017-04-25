@@ -1,4 +1,5 @@
-from .const import *
-from .messaging import *
-from .routines import *
-from .util import *
+
+# Py2/3 compatibility
+if "raw_input" not in globals():
+    # noinspection PyShadowingBuiltins
+    raw_input = input

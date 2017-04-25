@@ -5,7 +5,7 @@ import time
 import socket
 import threading as thr
 
-from .const import CAR_PROBE_PORT
+from .const import CAR_PROBE_PORT, MESSAGE_SERVER_PORT
 
 
 class Messaging(object):
@@ -15,15 +15,15 @@ class Messaging(object):
     message-passing between the car and the server.
     """
 
-    def __init__(self, sock, tag=b""):
+    def __init__(self, conn, tag=b""):
         """
-        :param sock: socket, around which the Messenger is wrapped
+        :param conn: socket, around which the Messenger is wrapped
         :param tag: optional tag, concatenated to the beginning of every message
         """
         self.tag = tag
         self.recvbuffer = []
         self.sendbuffer = []
-        self.sock = sock
+        self.sock = conn
         self.job_in = thr.Thread(target=self.flow_in)
         self.job_out = thr.Thread(target=self.flow_out)
 
@@ -36,6 +36,11 @@ class Messaging(object):
         self.job_in.start()
         self.job_out.start()
         print("Messenger workers started!")
+
+    @classmethod
+    def connect_to(cls, IP, tag=b"", timeout=1):
+        conn = socket.create_connection((IP, MESSAGE_SERVER_PORT), timeout=timeout)
+        return cls(conn, tag)
 
     def flow_out(self):
         """
@@ -65,7 +70,10 @@ class Messaging(object):
                 except socket.timeout:
                     pass
                 except socket.error as E:
-                    print("MESSENGER: caught socket exception:", E.message)
+                    print("MESSENGER: caught socket exception:", E)
+                    self.teardown(1)
+                except Exception as E:
+                    print("MESSENGER: generic exception:", E)
                     self.teardown(1)
                 else:
                     data += slc
@@ -84,6 +92,7 @@ class Messaging(object):
         
         :param msgs: the actual messages to send
         """
+        assert all(isinstance(m, bytes) for m in msgs)
         self.sendbuffer.extend([self.tag + m + b"ROGER" for m in msgs])
 
     def recv(self, n=1, timeout=0):
@@ -114,7 +123,7 @@ class Messaging(object):
             msgs.append(m)
         return msgs if len(msgs) > 1 else msgs[0]
 
-    def teardown(self, sleep=3):
+    def teardown(self, sleep=0):
         self.running = False
         time.sleep(sleep)
         self.sock.close()
@@ -132,35 +141,6 @@ class Probe(object):
     __metaclass__ = abc.ABCMeta
 
     @staticmethod
-    def validate_car_tag(tag, address=None):
-        
-        def missing_ampersand():
-            print("TAG-VALIDATING:", tag)
-            if " @ " not in tag:
-                return 1
-
-        def warn_if_received_address_does_not_equal_expected():
-            if remote_addr != address:
-                print("INVALID CAR TAG: address invalid:")
-                print("(expected) {} != {} (got)"
-                      .format(address, remote_addr))
-
-        def invalid_entity_type():
-            if entity_type != "car":
-                print("INVALID CAR TAG: invalid entity type:", entity_type)
-
-        tag = unicode(tag)
-        if missing_ampersand():
-            return 
-        IDs, remote_addr = tag.split(" @ ")
-        if address is not None:
-            warn_if_received_address_does_not_equal_expected()
-        entity_type, ID = IDs.split("-")
-        if invalid_entity_type():
-            return
-        return ID
-
-    @staticmethod
     def probe(*ips):
         """
         Send a <probing> message to the specified IP addresses.
@@ -175,7 +155,38 @@ class Probe(object):
         Send a <connect> message to the specified IP addresses.
         The target car will initiate connection to this server/client.
         """
-        return Probe._probe_all(b"connect", *ips)
+        got = Probe._probe_all(b"connect", *ips)
+        return got if len(got) > 1 else got[0]
+
+    @staticmethod
+    def _validate_car_tag(tag, address=None):
+
+        def missing_ampersand():
+            # print("TAG-VALIDATING:", tag)
+            if " @ " not in tag:
+                return 1
+
+        def warn_in_case_of_unexpected_remote_IP_address():
+            if remote_addr != address:
+                print("INVALID CAR TAG: address invalid:")
+                print("(expected) {} != {} (got)"
+                      .format(address, remote_addr))
+
+        def invalid_entity_type():
+            if entity_type != "car":
+                # print("INVALID CAR TAG: invalid entity type:", entity_type)
+                pass
+
+        tag = tag.decode("utf-8")
+        if missing_ampersand():
+            return
+        IDs, remote_addr = tag.split(" @ ")
+        if address is not None:
+            warn_in_case_of_unexpected_remote_IP_address()
+        entity_type, ID = IDs.split("-")
+        if invalid_entity_type():
+            return
+        return ID
 
     @staticmethod
     def _probe_all(msg, *ips):
@@ -198,7 +209,7 @@ class Probe(object):
         extracted from it and returned.
         """
 
-        assert unicode(msg) in ("connect", "probing"), "Invalid message!"
+        assert msg.decode("utf-8") in ("connect", "probing"), "Invalid message!"
 
         def create_connection():
             while 1:
@@ -233,24 +244,28 @@ class Probe(object):
         tag = probe_and_receive_tag()
         if tag is None:
             return ip, None
-        ID = Probe.validate_car_tag(tag, ip)
+        ID = Probe._validate_car_tag(tag, ip)
         if ID is None:
-            print("PROBE: invalid car ID from tag: [{}] @ {}"
-                  .format(tag, ip))
+            # print("PROBE: invalid car ID from tag: [{}] @ {}"
+            #       .format(tag, ip))
             return ip, None
         return ip, ID
 
     @staticmethod
     def _reparse_and_validate_ip(ip):
+        """
+        Overly complicated method, used to parse IP address ranges,
+        e.g. the conversion from 192.168.1.1-100 to actual addresses
+        """
 
-        def look_for_hyphen(i, part):
+        def look_for_hyphen(index, part):
             if state_flag >= 0:
                 print("PROBE: only one part of the IP can be set to a range!")
                 return None
             if not all(r.isdigit() for r in part.split("-")):
                 print(msg, "Found non-digit in range!")
                 return None
-            return i
+            return index
 
         def split_ip():
             split = ip.split(".")
@@ -259,9 +274,9 @@ class Probe(object):
             return split
 
         def calculate_state():
-            for i, part in enumerate(splip):
+            for index, part in enumerate(splip):
                 if "-" in part:
-                    return look_for_hyphen(i, part)
+                    return look_for_hyphen(index, part)
                 else:
                     if not part.isdigit():
                         print(msg, "Found non-digit:", part)

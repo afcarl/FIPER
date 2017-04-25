@@ -14,8 +14,7 @@ import cv2
 # project imports
 from FIPER.generic.util import CaptureDeviceMocker
 from FIPER.generic.const import DTYPE, CAR_PROBE_PORT
-
-DUMMY_VIDEOFILE = ""
+from FIPER.generic.abstract import AbstractConsole
 
 
 class ChannelBase(object):
@@ -29,9 +28,8 @@ class ChannelBase(object):
         self.running = False
         self.worker = None
 
-    def connect(self, sock):
-        sock.settimeout(1)
-        self.sock = sock
+    def connect(self, IP, port):
+        self.sock = socket.create_connection((IP, port), timeout=1)
 
     def start(self):
         if self.sock is None:
@@ -47,11 +45,16 @@ class ChannelBase(object):
     def run(self):
         raise NotImplementedError
 
-    def teardown(self, sleep=1):
+    def cleanup(self, sleep=0):
         self.running = False
         time.sleep(sleep)
-        self.sock.close()
+        if self.sock:
+            self.sock.close()
+        self.sock = None
         self.worker = None
+
+    def teardown(self, sleep=0):
+        self.cleanup(sleep)
 
 
 class RCReceiver(ChannelBase):
@@ -76,17 +79,18 @@ class RCReceiver(ChannelBase):
             except socket.timeout:
                 pass  # print("RC: Timed out!")
             else:
-                data = unicode(data)
-                print("RC:", data)
+                data = data.decode("utf-8")
                 data = data.split(";")
+                print(", ".join(data), end=", ")
 
-                # # Push RC commands to hardware! # #
-                self._recvbuffer.extend(data)     # #
+                # # # # # # # # # # # # # # # # # # #
+                # TODO: write code for this!        #
+                # Push RC commands to hardware      #
                 # # # # # # # # # # # # # # # # # # #
 
-                # Clip the buffer, only keep the last 100 items
-                self._recvbuffer = self._recvbuffer[-100:]
-        print("RC: Exiting...")
+                # Clip the buffer, only keep the last 100 items (?)
+        self.cleanup()
+        print("RCReceiver: socket closed, worker deleted! Exiting...")
 
 
 class TCPStreamer(ChannelBase):
@@ -151,12 +155,17 @@ class TCPStreamer(ChannelBase):
             pushed += 1
             print("\rPushed {:>3} frames".format(pushed), end="")
         self.eye.close()
-        print("STREAMER: Stream terminated!")
+        self.cleanup()
+        print("TCPStreamer: socket and worker deleted! Exiting...")
 
 
 class Idle(object):
 
-    """Before instantiating TCPCar"""
+    """
+    Cars enter this state initially, if no server IP is given for them.
+    In the Idle state, they can be probed and if the probing message is
+    valid, they send back their CarID and IP address to the probe.
+    """
 
     def __init__(self, myIP, myID):
         self.IP = myIP
@@ -174,28 +183,26 @@ class Idle(object):
 
     def _read_message_from_probe(self):
         try:
-            m = self.conn.recv(1024)
+            m = self.conn.recv(1024).decode("utf-8")
         except socket.timeout:
             return
         else:
             return m if m in ("probing", "connect") else None
 
     def _new_connection_causes_loopbreak(self):
-        print("IDLE: probed by", self.IP)
-
         msg = self._read_message_from_probe()
         if msg is None:
-            print("IDLE: unknown host:", self.remote_address[0])
+            print("IDLE: empty message from", self.remote_address[0])
             return False
 
-        print("IDLE: got msg:", msg)
+        print("IDLE: probed by: {}; msg: {}".format(self.IP, msg))
         self._respond_to_probe(msg)
         return msg == "connect"
 
     def _respond_to_probe(self, msg):
-        m = b"car-{} @ {}".format(self.ID, self.IP)
+        m = "car-{} @ {}".format(self.ID, self.IP)
         if msg in ("connect", "probing"):
-            self.conn.send(m)
+            self.conn.send(m.encode())
         else:
             print("IDLE: invalid message received! Ignoring...")
 
@@ -216,15 +223,19 @@ class Idle(object):
 
 class Eye(object):
 
+    """
+    Methods used for setting up a video capture device.
+    """
+
     # noinspection PyArgumentList
-    def __init__(self, dev=None):
+    def __init__(self, dev=None, dummyfile=None):
         if dev is None:
-            if not DUMMY_VIDEOFILE:
+            if not dummyfile:
                 self.device = lambda: cv2.VideoCapture(0)
-            elif not os.path.exists(DUMMY_VIDEOFILE):
+            elif not os.path.exists(dummyfile):
                 self.device = CaptureDeviceMocker
             else:
-                self.device = lambda: cv2.VideoCapture(DUMMY_VIDEOFILE)
+                self.device = lambda: cv2.VideoCapture(dummyfile)
         else:
             self.device = dev
 
@@ -241,3 +252,52 @@ class Eye(object):
     def close(self):
         self._eye.release()
         self._eye = None
+
+
+class Ear(AbstractConsole):
+
+    def __init__(self, messenger, **commands):
+        super(Ear, self).__init__("Car", commands_dict=commands)
+        self.messenger = messenger
+        print("EAR: online!")
+
+    def read_cmd(self):
+        m = self.messenger.recv(timeout=1)
+        if m is None:
+            return
+        return m
+
+
+class Handshake(object):
+
+    """
+    Coordinates the probing protocol's
+    handshake process on the car's side
+    """
+
+    @staticmethod
+    def perform(streamer, messenger):
+        Handshake._send_introduction(streamer, messenger)
+        hello = Handshake._read_response(messenger)
+        if not Handshake._validate_response(hello):
+            return None
+        return hello
+
+    @staticmethod
+    def _send_introduction(streamer, messenger):
+        introduction = "HELLO;" + streamer.frameshape
+        for i in range(3):
+            print("HANDSHAKE: Sending introduction:", introduction)
+            messenger.send(introduction.encode())
+            time.sleep(0.5)
+
+    @staticmethod
+    def _read_response(messenger):
+        for i in range(4, -1, -1):
+            hello = messenger.recv(timeout=1)
+            if hello is not None:
+                return hello
+
+    @staticmethod
+    def _validate_response(hello):
+        return hello == "HELLO"

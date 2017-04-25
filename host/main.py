@@ -6,15 +6,20 @@ from FIPER.host.bridge import FleetHandler
 
 
 def readargs():
-    return raw_input("Please supply the local IP address of this server > ")
+    import sys
+
+    if len(sys.argv) == 2:
+        return sys.argv[1]
+    else:
+        return raw_input("Please supply the local IP address of this server > ")
 
 
 def debugmain():
     """Launches the server on localhost"""
 
+    # No context manager in debugmain, I want to see the exceptions,
     server = FleetHandler("127.0.0.1")
-    server.listener.start()
-    server.console.run()
+    server.mainloop()  # enter the console mainloop
 
     time.sleep(3)
     print("OUTSIDE: Exiting...")
@@ -22,21 +27,12 @@ def debugmain():
 
 def main():
     """Does the argparse and launches a server"""
-    import sys
+    serverIP = readargs()
 
-    if len(sys.argv) == 2:
-        serverIP = sys.argv[1]
-    else:
-        serverIP = readargs()
-
-    server = FleetHandler(serverIP)
-    try:
-        server.console.run()
-    except Exception as E:
-        print("OUTSIDE: exception caught:", E.message)
-        print("OUTSIDE: shutting down...")
-    finally:
-        server.shutdown()
+    # Context manager ensures proper shutdown of threads
+    # see FleetHandler.__enter__ and __exit__ methods!
+    with FleetHandler(serverIP) as server:
+        server.mainloop()
 
     time.sleep(3)
     print("OUTSIDE: Exiting...")
