@@ -104,7 +104,7 @@ class FleetHandler(object):
         self._cars_online = "Unknown, use 'sweep' to find out!"
 
         self.listener = Listener(self)
-        self.console = AbstractConsole("FIPER-Server", **{
+        self.console = Console("FIPER-Server", **{
             "cars": self.printout_cars,
             "kill": self.kill_car,
             "watch": self.watch_car,
