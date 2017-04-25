@@ -53,11 +53,11 @@ class DirectConnection(AbstractListener):
             yield d
 
     def display_stream(self):
-        self.streaming = True
         if self.interface is None:
             print("DirectConnection: no interface!")
             return
         self.interface.send("stream on")
+        self.streaming = True
         self.streamer = StreamDisplayer(self.interface)
 
     def stop_stream(self):
@@ -86,8 +86,9 @@ def testrun():
 
         # Probe car
         for probe in range(3, -1, -1):
-            remote_ID = Probe.probe(IP)
-            print("PROBE-{}: reponse: {}".format(probe, remote_ID))
+            remote_IP, remote_ID = Probe.probe(IP)
+            print("PROBE-{}: reponse: {} from {}"
+                  .format(probe, remote_ID, remote_IP))
             time.sleep(3)
             if remote_ID is not None:
                 break

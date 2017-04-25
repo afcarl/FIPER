@@ -166,7 +166,8 @@ class Probe(object):
         Send a <probing> message to the specified IP addresses.
         If the target is a car, it will return its ID, or None otherwise.
         """
-        return Probe._probe_all(b"probing", *ips)
+        got = Probe._probe_all(b"probing", *ips)
+        return got if len(got) > 1 else got[0]
 
     @staticmethod
     def initiate(*ips):
