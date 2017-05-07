@@ -257,6 +257,7 @@ class MainFrame(wx.Frame):
 										size=(260,130)					)
 		ok_button.SetBitmapHover(self.ok_skin_hover)
 		ok_button.SetBitmapSelected(self.ok_skin_click)
+		ok_button.Bind(wx.EVT_BUTTON, self.exit)
 		
 		cancel_button = wx.BitmapButton(	self.quit_window, -1, self.cancel_skin, 
 											pos=(ok_button_x-500,ok_button_y), 
@@ -314,6 +315,10 @@ class MainFrame(wx.Frame):
 		
 		"""
 
+	def exit(self, event):
+		sys.exit(0)
+	
+		
 class NewFrame(wx.Frame):
 	instance_counter = 0
 	def __init__(self, title, width, height, x, y):
