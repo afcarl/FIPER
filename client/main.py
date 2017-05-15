@@ -44,12 +44,20 @@ class MainFrame(wx.Frame):
 	def set_background(self, event): 
 		# Setting up Background with Transparency and ClippingRegion
 		self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
-		dc = event.GetDC()
-		if not dc:
+		
+		try:
+			dc = e.GetDC()
+		except:
 			dc = wx.ClientDC(self)
-			rect = self.GetUpdateRegion().GetBox()
-			dc.SetClippingRegionAsRegion()
 		dc.Clear()
+
+		
+#		dc = event.GetDC()
+#		if not dc:
+#			dc = wx.ClientDC(self)
+#			rect = self.GetUpdateRegion().GetBox()
+#			dc.SetClippingRegionAsRegion()
+#		dc.Clear()
 		# Image sources
 		background_image = wx.Image('image\\menu\\bgnd.jpg').ConvertToBitmap()
 		fiper_logo = wx.Image('image\\menu\\fiper_logo.png').ConvertToBitmap()
@@ -130,11 +138,16 @@ class MainFrame(wx.Frame):
 		
 	def hide_buttons(self, event):
 		
-		self.connect_button.Destroy()
 		self.connect_button.Hide()
-		self.set_background()
-		self.Update()
-		self.connect_button.Update()
+		self.options_button.Hide()
+		self.quit_button.Hide()
+		self.set_background(event)
+	
+	def show_buttons(self,event):
+		
+		self.connect_button.Show()
+		self.options_button.Show()
+		self.quit_button.Show()
 	
 	def initiate_connection(self, event):
 		print 'connected!'
@@ -159,7 +172,7 @@ class MainFrame(wx.Frame):
 		y_pos = (self.height * 0.025)
 		width = (self.width * 0.95)
 		height = (self.height * 0.95)
-		self.connect_window = NewFrame(' C O N N E C T ', width, height, x_pos, y_pos)
+		self.connect_window = NewFrame(' C O N N E C T ', width, height, x_pos, y_pos, self)
 		
 		self.connect_window.Bind( wx.EVT_KILL_FOCUS, self.connect_lost_focus )
 		
@@ -222,9 +235,9 @@ class MainFrame(wx.Frame):
 		y_pos = (self.height * 0.025)
 		width = (self.width * 0.95)
 		height = (self.height * 0.95)
-		self.options_window = NewFrame(' O P T I O N S ', width, height, x_pos, y_pos)
+		self.options_window = NewFrame(' O P T I O N S ', width, height, x_pos, y_pos, self)
 		
-		# self.options_window.Bind( wx.EVT_KILL_FOCUS, self.options_lost_focus )
+		self.options_window.Bind( wx.EVT_KILL_FOCUS, self.options_lost_focus )
 		
 		ok_button_x = width * 0.8
 		ok_button_y = height * 0.82
@@ -248,7 +261,7 @@ class MainFrame(wx.Frame):
 		height = (self.height * 0.5)
 		
 		
-		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos)
+		self.quit_window = NewFrame(' Q U I T ', width, height, x_pos, y_pos, self)
 		
 		ok_button_x = width * 0.63
 		ok_button_y = height * 0.6
@@ -321,7 +334,14 @@ class MainFrame(wx.Frame):
 		
 class NewFrame(wx.Frame):
 	instance_counter = 0
-	def __init__(self, title, width, height, x, y):
+	
+	def __init__(self, title, width, height, x, y, p):
+		
+		#set MainFrame to parent
+		self.parent = p
+		
+		#hide main buttons
+		self.parent.hide_buttons(self.parent)
 		
 		# Counting the amound of instances to avoid creating infinite number of new frames 
 		self.__class__.instance_counter += 1 
@@ -388,7 +408,7 @@ class NewFrame(wx.Frame):
 				if ( tp == 0 ): break # Max transparency
 			self.__class__.instance_counter = 0 
 			self.Close()
-			
+			self.parent.show_buttons(self.parent)
 		if (event.GetKeyCode() == wx.WXK_RETURN):
 			sys.exit(0)
 		event.Skip() 
