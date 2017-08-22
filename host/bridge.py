@@ -113,12 +113,12 @@ class FleetHandler(object):
         status = carifc.recv()
         if status is None:
             print("SERVER: car-{} didn't shut down as expected!".format(ID))
-        elif status == "{} offline".format(ID):
+        elif status == "car-{}:offline".format(ID):
             print("SERVER: car-{} shut down as expected".format(ID))
         else:
             print("SERVER: received unknown status from car-{}: {}"
                   .format(ID, status))
-
+        carifc.teardown()
         del self.cars[ID]
 
     def watch_car(self, ID, *args):
@@ -129,7 +129,7 @@ class FleetHandler(object):
         if ID in self.watchers:
             print("SERVER: already watching", ID)
             return
-        self.cars[ID].send("stream on")
+        self.cars[ID].send(b"stream on")
         time.sleep(1)
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
 
@@ -138,7 +138,7 @@ class FleetHandler(object):
         if ID not in self.watchers:
             print("SERVER: {} is not being watched!".format(ID))
             return
-        self.cars[ID].send("stream off")
+        self.cars[ID].send(b"stream off")
         self.watchers[ID].teardown()
         time.sleep(3)
         del self.watchers[ID]
@@ -148,22 +148,19 @@ class FleetHandler(object):
 
         self.listener.teardown(1)
 
-        for ID, car in sorted(self.cars.items()):
+        for ID, ifc in sorted(self.cars.items()):
             if ID in self.watchers:
                 self.stop_watch(ID)
-            car.send("shutdown")
 
         rounds = 0
         while self.cars:
             print("SERVER: Car corpse collection round {}/{}".format(rounds+1, 4))
-            time.sleep(3)
-            for ID, car in sorted(self.cars.items()):
+            for ID, car in self.cars.items():
+                car.teardown(sleep=1)
                 msg = car.recv()
                 if msg != "car-{}:offline".format(ID):
                     print("SERVER: Received wrong corpse message:", msg)
-                    continue
-                self.cars[ID].teardown()
-                del self.cars[ID]
+                    del self.cars[ID], car
 
             if rounds >= 3:
                 print("SERVER: cars: [{}] didn't shut down correctly"

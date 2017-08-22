@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals, absolute_import
 import threading as thr
 
 from FIPER.generic.abstract import AbstractListener, AbstractCommander
-from FIPER.generic.interface import InterfaceBuilder
+from FIPER.generic.interface import InterfaceFactory
 
 
 class Listener(AbstractListener):
@@ -41,7 +41,7 @@ class Listener(AbstractListener):
         :param msock: connected socket used for message connection
         """
         print("LISTENER: called callback on incoming connection!")
-        ifc = InterfaceBuilder(msock, self.dlistener, self.rclistener).get()
+        ifc = InterfaceFactory(msock, self.dlistener, self.rclistener).get()
         if not ifc:
             print("LISTENER: no interface received!")
             return

@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals, absolute_import
 import sys
 import time
 
-from FIPER.generic.interface import InterfaceBuilder
+from FIPER.generic.interface import InterfaceFactory
 from FIPER.generic.abstract import AbstractListener
 from FIPER.generic.subsystem import StreamDisplayer
 from generic.probeclient import Probe
@@ -48,7 +48,7 @@ class DirectConnection(AbstractListener, Probe):
         created message-connection socket which creates the messaging
         channel between the remote car and this class.
         """
-        self.interface = InterfaceBuilder(
+        self.interface = InterfaceFactory(
             self.mlistener, self.dlistener, self.rclistener).get()
         self.running = False  # Break the mainloop in AbstractListener
 

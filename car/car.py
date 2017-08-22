@@ -8,7 +8,7 @@ from FIPER.car.component import Commander
 from FIPER.car.probeserver import ProbeServer, ProbeHandshake
 from FIPER.car.channel import TCPStreamer, RCReceiver
 from FIPER.generic.messaging import Messaging
-from FIPER.generic.const import STREAM_SERVER_PORT
+from FIPER.generic.const import STREAM_SERVER_PORT, RC_SERVER_PORT
 
 
 class TCPCar(object):
@@ -61,6 +61,8 @@ class TCPCar(object):
             self.messenger = Messaging.connect_to(self.server_ip, timeout=1, tag=mytag)
             time.sleep(1)
             ProbeHandshake.perform(self.streamer, self.messenger)
+            self.streamer.connect(self.server_ip, STREAM_SERVER_PORT)
+            self.receiver.connect(self.server_ip, RC_SERVER_PORT)
             self.commander = Commander(
                 self.messenger, stream=self.stream_command, shutdown=self.shutdown
             )

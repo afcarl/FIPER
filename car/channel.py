@@ -7,7 +7,7 @@ import warnings
 import threading as thr
 
 from FIPER.car.component import CaptureDevice, CaptureDeviceMocker
-from FIPER.generic.const import DTYPE
+from FIPER.generic.const import DTYPE, FPS
 
 
 class ChannelBase(object):
@@ -141,7 +141,8 @@ class TCPStreamer(ChannelBase):
                 if not self.running:
                     break
             pushed += 1
-            print("\rPushed {:>3} frames".format(pushed), end="")
-            self.eye.close()
-            self.cleanup()
-            print("TCPStreamer: socket and worker deleted! Exiting...")
+            print("Pushed {:>3} frames".format(pushed), end="")
+            time.sleep(1./FPS)
+        self.eye.close()
+        self.cleanup()
+        print("TCPStreamer: socket and worker deleted! Exiting...")

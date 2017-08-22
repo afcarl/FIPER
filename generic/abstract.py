@@ -151,7 +151,7 @@ class AbstractCommander(object):
                 self.cmd_parser(cmd, *args)
             except Exception as E:
                 print("CONSOLE: command [{}] raised: {}"
-                      .format(cmd, E.message))
+                      .format(cmd, E))
         self.running = False
 
         self.commands["shutdown"](*args)

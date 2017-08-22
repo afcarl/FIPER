@@ -55,4 +55,7 @@ class Commander(AbstractCommander):
 
     def read_cmd(self):
         m = self.messenger.recv(timeout=1)
-        return m, None
+        if m is None:
+            return None, ()
+        m = m.split(" ")
+        return m[0], m[1:]

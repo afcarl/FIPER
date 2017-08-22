@@ -10,7 +10,7 @@ from .abstract import AbstractInterface, AbstractCommander
 from .subsystem import Forwarder
 
 
-class InterfaceBuilder(object):
+class InterfaceFactory(object):
 
     """
     Coordinates the handshake between a network entity
@@ -144,9 +144,12 @@ class _CarInterface(AbstractInterface):
             data = data[datalen:]
 
     def teardown(self, sleep=3):
-        self.send("shutdown")
+        self.send(b"shutdown")
         super(_CarInterface, self).teardown(sleep)
         self.out("Teardown finished!")
+
+    def __del__(self):
+        self.teardown()
 
 
 class _ClientInterface(AbstractInterface):
