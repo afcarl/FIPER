@@ -5,7 +5,7 @@ import time
 import socket
 import subprocess
 
-from .routines import srvsock
+from .routine import srvsock
 
 
 class AbstractInterface(object):
@@ -40,6 +40,7 @@ class AbstractInterface(object):
             self.initiated = True
 
     def _accept_connection_and_validate_ip_addresses(self, sock, typ):
+        self.out("Awaiting {} connection...".format(typ))
         conn, addr = sock.accept()
         self.out("{} connection from {}:{}".format(typ, *addr))
         if self.remote_ip:
@@ -69,7 +70,7 @@ class AbstractInterface(object):
         self.rcsocket.close()
 
 
-class AbstractConsole(object):
+class AbstractCommander(object):
 
     """
     Abstraction of a FIPER console.
@@ -85,16 +86,17 @@ class AbstractConsole(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, master_name, status_tag="", commands_dict={}, **commands):
+    def __init__(self, master_name, status_tag="", commands_dict=None, **commands):
         """
         :param master_name: needed to build the console prompt
         :param status_tag: also for the console prompt
         :param commands_dict: commands as a string: callable mapping
         :param commands: commands can also be added as kwargs.
         """
-        super(AbstractConsole, self).__init__()
+        super(AbstractCommander, self).__init__()
         if not commands and not commands_dict:
-            print("ABS_CONSOLE: no command specified!")
+            print("ABS_COMMANDER no command specified!")
+            commands_dict = {} if commands_dict is None else commands_dict
         self.master_name = master_name
         self.status_tag = status_tag
         self.commands = {}
@@ -135,7 +137,9 @@ class AbstractConsole(object):
         """
         Server console main loop
         """
-        print("ABS_CONSOLE: online")
+        print("ABS_COMMANDER online")
+        args = ()
+
         self.running = True
         while self.running:
             cmd, args = self.read_cmd()
@@ -148,8 +152,10 @@ class AbstractConsole(object):
             except Exception as E:
                 print("CONSOLE: command [{}] raised: {}"
                       .format(cmd, E.message))
+        self.running = False
+
         self.commands["shutdown"](*args)
-        print("ABS_CONSOLE: Exiting...")
+        print("ABS_COMMANDER Exiting...")
 
     @abc.abstractmethod
     def read_cmd(self):
@@ -180,13 +186,6 @@ class AbstractListener(object):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, myIP):
-        """
-        Listens for entities on the local network.
-        Incomming connections produce a connected socket,
-        on which callback_on_connection is called, so
-        callback_on_connection's signature should look like so:
-        callback(msock), where msock will be the connected socket.
-        """
         self.mlistener = srvsock(myIP, "messaging", timeout=3)
         self.dlistener = srvsock(myIP, "stream")
         self.rclistener = srvsock(myIP, "rc", timeout=1)

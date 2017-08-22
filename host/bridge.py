@@ -2,82 +2,13 @@ from __future__ import print_function, absolute_import, unicode_literals
 
 # stdlib imports
 import time
-import threading as thr
 from datetime import datetime
 
 # project imports
-from FIPER.generic.interfaces import InterfaceBuilder
-from FIPER.generic.abstract import (
-    AbstractListener, AbstractConsole
-)
-from FIPER.generic.subsystems import StreamDisplayer
-from FIPER.generic.messaging import Probe
+from FIPER.generic.subsystem import StreamDisplayer
 from FIPER.generic.util import Table
-
-
-class Listener(AbstractListener):
-
-    """
-    Singleton class!
-    Listens for incoming car connections for the server.
-    Runs in a separate thread.
-    """
-
-    instances = 0
-
-    def __init__(self, master):
-        if Listener.instances > 0:
-            raise RuntimeError("The Singleton [Listener] is already instantiated!")
-
-        AbstractListener.__init__(self, master.ip)
-
-        self.master = master  # type: FleetHandler
-        self.worker = None  # type: thr.Thread
-
-        Listener.instances += 1
-
-    def start(self):
-        """
-        Creates a new worker thread in case Listener needs to be
-        restarted.
-        self.run is inherited from AbstractListener
-        """
-        if self.worker is not None:
-            print("ABS_LISTENER: Attempted start while already running!")
-            return
-        self.worker = thr.Thread(target=self.mainloop, name="Server-Listener")
-        self.worker.start()
-
-    def teardown(self, sleep=2):
-        super(Listener, self).teardown(sleep)
-        self.worker = None
-
-    def callback(self, msock):
-        """
-        Builds an interface and puts it into the server's appropriate
-        container for later usage.
-        :param msock: connected socket used for message connection
-        """
-        ifcb = InterfaceBuilder(self.mlistener, self.dlistener, self.rclistener)
-        ifc = ifcb.get()
-        if not ifc:
-            return
-        if ifc.entity_type == "car":
-            self.master.cars[ifc.ID] = ifc
-        else:
-            self.master.clients[ifc.ID] = ifc
-
-
-class Console(AbstractConsole):
-
-    def read_cmd(self):
-        c = raw_input(self.prompt).split(" ")
-        cmd = c[0].lower()
-        if len(c) > 1:
-            args = c[1:]
-        else:
-            args = []
-        return cmd, args
+from FIPER.generic.probeclient import Probe
+from FIPER.host.component import Listener, Console
 
 
 # noinspection PyUnusedLocal
@@ -105,7 +36,6 @@ class FleetHandler(object):
         self.watchers = {}
         self.since = datetime.now()
 
-        self.listener = Listener(self)
         self.status = "Idle"
         self.console = Console(
             master_name="FIPER-Server",
@@ -119,26 +49,21 @@ class FleetHandler(object):
                 "status": self.report,
                 "message": self.message,
                 "probe": self.probe,
-                "connect": self.connect,
+                "connect": Probe.initiate,
                 "sweep": self.sweep
             }
         )
 
-        self.listener.start()  # start listening for incomming connections
+        self.listener = Listener(self)
+        self.listener.start()
         print("SERVER: online")
-        print("SERVER: server.mainloop() to launch the console!")
-
-    def printout_cars(self, *args):
-        """List the current car-connections"""
-        print("Cars online:\n{}\n".format("\n".join(self.cars)))
 
     def mainloop(self):
         self.console.mainloop()
 
-    @staticmethod
-    def connect(*ips):
-        """Initiate connection with the supplied ip address(es)"""
-        Probe.initiate(*ips)
+    def printout_cars(self, *args):
+        """List the current car-connections"""
+        print("Cars online:\n{}\n".format("\n".join(self.cars)))
 
     @staticmethod
     def probe(*ips):
@@ -183,7 +108,7 @@ class FleetHandler(object):
             self.stop_watch(ID)
         carifc = self.cars[ID]
         carifc.send("shutdown")
-        time.sleep(3)
+        time.sleep(2)
 
         status = carifc.recv()
         if status is None:

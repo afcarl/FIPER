@@ -1,6 +1,6 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
-from .routines import white_noise
+from .routine import white_noise
 
 
 DUMMY_FRAMESIZE = (480, 640, 3)  # = 921,600 B in uint8

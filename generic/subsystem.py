@@ -55,9 +55,9 @@ class Forwarder(object):
     def __init__(self, srcsock, trgsock, name=""):
         self.srcsock = srcsock
         self.trgsock = trgsock
-        self.tag = name + "-Forwarder"
+        self.tag = "-".join((name, "Forwarder"))
         self.worker = None
-        self.working = False
+        self.running = False
 
     def start(self):
         if self.worker is not None:
@@ -69,8 +69,8 @@ class Forwarder(object):
 
     def run(self):
         print("{} starts working".format(self.tag))
-        self.working = True
-        while self.working:
+        self.running = True
+        while self.running:
             try:
                 data = self.srcsock.recv(1024)
             except socket.timeout:
@@ -80,6 +80,10 @@ class Forwarder(object):
         print("{} exiting...".format(self.tag))
 
     def teardown(self, sleep=1):
-        self.working = False
+        self.running = False
         time.sleep(sleep)
         self.worker = None
+
+    def __del__(self):
+        if self.running:
+            self.teardown()

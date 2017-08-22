@@ -4,7 +4,9 @@ from __future__ import print_function, absolute_import, unicode_literals
 import time
 
 # Project imports
-from FIPER.car.components import TCPStreamer, RCReceiver, Idle, Handshake, Ear
+from FIPER.car.component import Commander
+from FIPER.car.probeserver import ProbeServer, ProbeHandshake
+from FIPER.car.channel import TCPStreamer, RCReceiver
 from FIPER.generic.messaging import Messaging
 from FIPER.generic.const import STREAM_SERVER_PORT
 
@@ -27,57 +29,46 @@ class TCPCar(object):
         self.streamer = TCPStreamer()
         self.receiver = RCReceiver()
         self.messenger = None  # type: Messaging
-        self.ear = None  # type: Ear
-        self.live = False
+        self.commander = None  # type: Commander
         self.server_ip = None
+        self.online = False
 
-    def mainloop(self, srvIP=None):
+    def mainloop(self):
         """
-        This method needs some more love
-        
-        :param srvIP: the IP address of the server 
+        Loop for the main thread
         """
-        self.server_ip = None
-        if srvIP is not None:
-            self.server_ip = srvIP
-        else:
-            self.out("No server IP supplied, going into IDLE state...")
-            self._idle()  # sets server IP implicitly
-
-        if self.server_ip:
-            try:
-                self._connect()
-            except Exception as E:
-                self.out("exception while connecting:", E)
-                self.shutdown()
-                return
-        else:
+        if not self._listen_for_server_probe_on_thin_channel():
             self.shutdown()
             return
+        if not self._establish_connection_on_thick_channels():
+            self.shutdown()
+            return
+        self.commander.mainloop()
 
-    def _idle(self):
-        while 1:
-            try:
-                self.server_ip = Idle(self.ip, self.ID).mainloop()
-            except KeyboardInterrupt:
-                self.out("IDLE terminated!")
-                break
-            except Exception:
-                raise
-            else:
-                break
-        self.out("IDLE exiting...")
+    def _listen_for_server_probe_on_thin_channel(self):
+        try:
+            while not self.server_ip:
+                self.server_ip = ProbeServer(self.ip, self.ID).mainloop()
+        except Exception as E:
+            print("CAR: ProbeServer failed with exception:", E)
+            return False
+        return True
 
-    def _connect(self):
+    def _establish_connection_on_thick_channels(self):
         """Establishes the messaging connection with a server"""
-        self.messenger = Messaging.connect_to(
-            self.server_ip, timeout=1,
-            tag="{}-{}:".format(self.entity_type, self.ID).encode()
-        )
-        time.sleep(3)
-        Handshake.perform(self.streamer, self.messenger)
-        self.ear = Ear(self.messenger, stream=self.stream_command, shutdown=self.shutdown)
+        mytag = "{}-{}:".format(self.entity_type, self.ID).encode()
+        try:
+            self.messenger = Messaging.connect_to(self.server_ip, timeout=1, tag=mytag)
+            time.sleep(1)
+            ProbeHandshake.perform(self.streamer, self.messenger)
+            self.commander = Commander(
+                self.messenger, stream=self.stream_command, shutdown=self.shutdown
+            )
+        except Exception as E:
+            print("CAR: failed to connect with exception:", E)
+            return False
         self.out("connected to", self.server_ip)
+        return True
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
@@ -103,4 +94,4 @@ class TCPCar(object):
         if self.messenger is not None:
             self.messenger.send(b"offline")
             self.messenger.teardown(2)
-        self.live = False
+        self.online = False

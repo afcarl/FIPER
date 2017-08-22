@@ -7,7 +7,7 @@ from __future__ import absolute_import, unicode_literals, print_function
 
 import sys
 
-from FIPER.car.tcp_car import TCPCar
+from FIPER.car.car import TCPCar
 
 
 def readargs():

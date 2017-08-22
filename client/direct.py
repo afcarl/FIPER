@@ -3,10 +3,10 @@ from __future__ import print_function, unicode_literals, absolute_import
 import sys
 import time
 
-from FIPER.generic.interfaces import InterfaceBuilder
+from FIPER.generic.interface import InterfaceBuilder
 from FIPER.generic.abstract import AbstractListener
-from FIPER.generic.subsystems import StreamDisplayer
-from FIPER.generic.messaging import Probe
+from FIPER.generic.subsystem import StreamDisplayer
+from generic.probeclient import Probe
 
 
 class DirectConnection(AbstractListener, Probe):

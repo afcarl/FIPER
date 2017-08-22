@@ -14,9 +14,8 @@ class ServerConnection(object):
     def __init__(self, serverIP, ID):
         self.ID = ID
         self.serverIP = serverIP
-        self.messaging = Messaging(
-            socket.create_connection((serverIP, MESSAGE_SERVER_PORT))[0],
-            tag=b"{}-{}:".format(self.entity_type, self.ID))
+        self.messaging = Messaging(socket.create_connection((serverIP, MESSAGE_SERVER_PORT))[0], (),
+                                   tag=b"{}-{}:".format(self.entity_type, self.ID))
 
         # Validation should be done via the messaging channel:
         # - username/password check

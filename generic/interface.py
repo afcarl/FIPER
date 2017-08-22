@@ -6,8 +6,8 @@ import numpy as np
 
 from .const import DTYPE
 from .messaging import Messaging
-from .abstract import AbstractInterface, AbstractConsole
-from .subsystems import Forwarder
+from .abstract import AbstractInterface, AbstractCommander
+from .subsystem import Forwarder
 
 
 class InterfaceBuilder(object):
@@ -28,7 +28,7 @@ class InterfaceBuilder(object):
         :param rclistener: unconnected server socket awaiting RC connections
         """
 
-        self.messenger = Messaging(msock)
+        self.messenger = Messaging(msock, None)
         self.dlistener = dlistener
         self.rclistener = rclistener
         self.introduction = None
@@ -42,10 +42,13 @@ class InterfaceBuilder(object):
         if not self._read_introduction():
             return
         if not self._valid_introduction():
+            print("IFC_BUILDER: invalid introduction @ validation:", self.introduction)
             return
         self.messenger.send(b"HELLO")
         if not self._parse_introductory_string():
+            print("IFC_BUILDER: invalid introduction @ parsing:", self.introduction)
             return
+        print("IFC_BUILDER: valid introduction!")
         return self._instantiate_interface()
 
     @property
@@ -56,7 +59,6 @@ class InterfaceBuilder(object):
         tries = 0
         while self.introduction is None:
             self.introduction = self.messenger.recv(timeout=1)
-            print("IFC_BUILDER: got introduction:", self.introduction)
             tries += 1
             if tries > self.retries:
                 print("IFC_BUILDER: didn't receive an introduction!")
@@ -66,28 +68,17 @@ class InterfaceBuilder(object):
     def _valid_introduction(self):
         if ":HELLO;" in self.introduction:
             return True
-        print("IFC_BUILDER: invalid introduction!")
         return False
 
     def _valid_frame_shape(self, framestring):
-        frameshape = [int(sp) for sp in framestring.split("x")]
-        if len(frameshape) < 2 or len(frameshape) > 3:
-            errmsg = ("Wrong number of dimensions in frameshape definition.\n" +
-                      "Got {} from {}!".format(self.ID, frameshape))
-            print(errmsg)
+        try:
+            frameshape = [int(sp) for sp in framestring.split("x")]
+        except TypeError:
+            return False
+        if len(frameshape) not in (2, 3):
             return False
         self.info = frameshape
         return True
-
-    def _instantiate_interface(self):
-        interface = {"car": _CarInterface(*self._args),
-                     "client": _ClientInterface(*self._args)
-                     }.get(self.etype, None)
-        if interface is None:
-            print("IFC_BUILDER: unable to establish connection with {} of type {}:"
-                  .format(self.ID, self.etype))
-            return
-        return interface
 
     def _parse_introductory_string(self):
         """
@@ -98,10 +89,15 @@ class InterfaceBuilder(object):
         handshake, info = self.introduction.split(":HELLO;")
         self.etype, self.ID = handshake.split("-")
 
-        if self.etype == "car":
-            if not self._valid_frame_shape(info):
-                return False
+        if self.etype == "car" and not self._valid_frame_shape(info):
+            return False
         return True
+
+    def _instantiate_interface(self):
+        ifc = {"car": _CarInterface,
+               "client": _ClientInterface
+               }[self.etype](*self._args)
+        return ifc
 
 
 class _CarInterface(AbstractInterface):
@@ -217,7 +213,7 @@ class _ClientInterface(AbstractInterface):
     def __del__(self):
         self.teardown()
 
-    class Commander(Thread, AbstractConsole):
+    class Commander(Thread, AbstractCommander):
 
         """
         Nested class, which defines the command parser.
@@ -226,7 +222,7 @@ class _ClientInterface(AbstractInterface):
 
         def __init__(self, messenger, master_name, **commands):
             Thread.__init__(self, name=master_name + "-Commander")
-            AbstractConsole.__init__(self, master_name, **commands)
+            AbstractCommander.__init__(self, master_name, **commands)
             self.messenger = messenger  # type: Messaging
 
         def read_cmd(self):
