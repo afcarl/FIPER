@@ -51,8 +51,8 @@ class MainFrame(wx.Frame):
 			dc.SetClippingRegionAsRegion()
 		dc.Clear()
 		# Image sources
-		background_image = wx.Image('image\\menu\\bgnd.jpg').ConvertToBitmap()
-		fiper_logo = wx.Image('image\\menu\\fiper_logo.png').ConvertToBitmap()
+		background_image = wx.Image('image/menu/bgnd.jpg').ConvertToBitmap()
+		fiper_logo = wx.Image('image/menu/fiper_logo.png').ConvertToBitmap()
 		# Scale and set textures
 		self.background_bitmap = self.scale_bitmap(background_image, self.width, self.height)
 		dc.DrawBitmap(self.background_bitmap, 0, 0, True)
@@ -74,30 +74,30 @@ class MainFrame(wx.Frame):
 		
  	def set_cursor(self):
 		# Custom cursor for the application
-		cursor_path = ('image\\menu\\cursor.ico')
+		cursor_path = ('image/menu/cursor.ico')
 		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 6, 28)
 		self.SetCursor(cursor)	
 		
 	def define_button_textures(self):
-		self.connect_skin = wx.Bitmap('image\\menu\\buttons\\btn0.png')
-		self.connect_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn0_hover.png')
-		self.connect_skin_click = wx.Bitmap('image\\menu\\buttons\\btn0_click.png')
+		self.connect_skin = wx.Bitmap('image/menu/buttons/btn0.png')
+		self.connect_skin_hover = wx.Bitmap('image/menu/buttons/btn0_hover.png')
+		self.connect_skin_click = wx.Bitmap('image/menu/buttons/btn0_click.png')
 		
-		self.options_skin = wx.Bitmap('image\\menu\\buttons\\btn1.png')
-		self.options_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn1_hover.png')
-		self.options_skin_click = wx.Bitmap('image\\menu\\buttons\\btn1_click.png')
+		self.options_skin = wx.Bitmap('image/menu/buttons/btn1.png')
+		self.options_skin_hover = wx.Bitmap('image/menu/buttons/btn1_hover.png')
+		self.options_skin_click = wx.Bitmap('image/menu/buttons/btn1_click.png')
 		
-		self.quit_skin = wx.Bitmap('image\\menu\\buttons\\btn2.png')
-		self.quit_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn2_hover.png')
-		self.quit_skin_click = wx.Bitmap('image\\menu\\buttons\\btn2_click.png')
+		self.quit_skin = wx.Bitmap('image/menu/buttons/btn2.png')
+		self.quit_skin_hover = wx.Bitmap('image/menu/buttons/btn2_hover.png')
+		self.quit_skin_click = wx.Bitmap('image/menu/buttons/btn2_click.png')
 		
-		self.ok_skin = wx.Bitmap('image\\menu\\buttons\\btn3.png')
-		self.ok_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn3_hover.png')
-		self.ok_skin_click = wx.Bitmap('image\\menu\\buttons\\btn3_click.png')
+		self.ok_skin = wx.Bitmap('image/menu/buttons/btn3.png')
+		self.ok_skin_hover = wx.Bitmap('image/menu/buttons/btn3_hover.png')
+		self.ok_skin_click = wx.Bitmap('image/menu/buttons/btn3_click.png')
 		
-		self.cancel_skin = wx.Bitmap('image\\menu\\buttons\\btn4.png')
-		self.cancel_skin_hover = wx.Bitmap('image\\menu\\buttons\\btn4_hover.png')
-		self.cancel_skin_click = wx.Bitmap('image\\menu\\buttons\\btn4_click.png')
+		self.cancel_skin = wx.Bitmap('image/menu/buttons/btn4.png')
+		self.cancel_skin_hover = wx.Bitmap('image/menu/buttons/btn4_hover.png')
+		self.cancel_skin_click = wx.Bitmap('image/menu/buttons/btn4_click.png')
 		
 	def place_buttons(self):
 		self.define_button_textures()
@@ -296,14 +296,14 @@ class MainFrame(wx.Frame):
 		sys.exit(return_value)
 			
 	# def music(self):
-		# self.music = wx.Sound('audio\\music\\carpenter_brut.wav')
+		# self.music = wx.Sound('audio/music/carpenter_brut.wav')
 		# if self.music.IsOk():
 			# self.music.Play(wx.SOUND_ASYNC)
 		# else:
 			# print "Missing or invalid sound file", "Error"
 			
 	def music(self):
-		music_file = 'audio\\music\\carpenter_brut.wav'
+		music_file = 'audio/music/carpenter_brut.wav'
 		self.mediaPlayer = wx.media.MediaCtrl(self,1)
 		self.mediaPlayer.Load(music_file)
 		self.mediaPlayer.Play()
@@ -363,7 +363,7 @@ class NewFrame(wx.Frame):
 		wx.StaticBitmap(self, -1, bmp)
 
 	def set_cursor(self):
-		cursor_path = ('image\\menu\\cursor.ico')
+		cursor_path = ('image/menu/cursor.ico')
 		cursor = wx.Cursor(cursor_path, wx.BITMAP_TYPE_ICO, 0, 0)
 		self.SetCursor(cursor)
 
