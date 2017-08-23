@@ -49,15 +49,6 @@ It is used by client and server.
 
 Commonly used functions.
 
-## subsystems.py
-
-Generic components, which don't quite fit into abstract.py, because they're not abstract classes.
-
-- **StreamDisplayer**: displays the stream of a CarInterface.
-It is used by client and server.
-- **Forwarder**: runs in a separate thread, forwarding data from one socket to another.
-Used by server.
-
 ## util.py
 
 The miscellaneous stuff:
