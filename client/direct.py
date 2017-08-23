@@ -94,6 +94,7 @@ class DirectConnection(AbstractListener, Probe):
         self.interface.send("stream on")
         self.streaming = True
         self.streamer = StreamDisplayer(self.interface)
+        self.streamer.connect(self.interface.IP)
 
     def stop_stream(self):
         self.interface.send("stream off")
@@ -138,6 +139,7 @@ def testrun():
         return dc.connect(IP)
 
     def test_stream(dc):
+        print("STREAM TEST online...")
         dc.display_stream()
         while 1:
             # noinspection PyUnboundLocalVariable

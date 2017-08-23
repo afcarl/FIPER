@@ -106,20 +106,9 @@ class FleetHandler(object):
             return
         if ID in self.watchers:
             self.stop_watch(ID)
-        carifc = self.cars[ID]
-        carifc.send("shutdown")
-        time.sleep(2)
-
-        status = carifc.recv()
-        if status is None:
-            print("SERVER: car-{} didn't shut down as expected!".format(ID))
-        elif status == "car-{}:offline".format(ID):
-            print("SERVER: car-{} shut down as expected".format(ID))
-        else:
-            print("SERVER: received unknown status from car-{}: {}"
-                  .format(ID, status))
-        carifc.teardown()
-        del self.cars[ID]
+        success = self.cars[ID].teardown(sleep=1)
+        if success:
+            del self.cars[ID]
 
     def watch_car(self, ID, *args):
         """Initializes streaming via StreamDisplayer in a separate thread"""
@@ -132,6 +121,7 @@ class FleetHandler(object):
         self.cars[ID].send(b"stream on")
         time.sleep(1)
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
+        self.watchers[ID].connect()
 
     def stop_watch(self, ID, *args):
         """Tears down the StreamDisplayer and shuts down a stream"""
@@ -139,8 +129,7 @@ class FleetHandler(object):
             print("SERVER: {} is not being watched!".format(ID))
             return
         self.cars[ID].send(b"stream off")
-        self.watchers[ID].teardown()
-        time.sleep(3)
+        self.watchers[ID].teardown(sleep=1)
         del self.watchers[ID]
 
     def shutdown(self, *args):
@@ -148,19 +137,13 @@ class FleetHandler(object):
 
         self.listener.teardown(1)
 
-        for ID, ifc in sorted(self.cars.items()):
-            if ID in self.watchers:
-                self.stop_watch(ID)
-
         rounds = 0
         while self.cars:
             print("SERVER: Car corpse collection round {}/{}".format(rounds+1, 4))
-            for ID, car in self.cars.items():
-                car.teardown(sleep=1)
-                msg = car.recv()
-                if msg != "car-{}:offline".format(ID):
-                    print("SERVER: Received wrong corpse message:", msg)
-                    del self.cars[ID], car
+            for ID in self.cars:
+                if ID in self.watchers:
+                    self.stop_watch(ID)
+                self.kill_car(ID)
 
             if rounds >= 3:
                 print("SERVER: cars: [{}] didn't shut down correctly"

@@ -18,10 +18,9 @@ class StreamDisplayer(thr.Thread):
         """
         :param carint: CarInterface instance 
         """
-        self.interface = carint
         thr.Thread.__init__(self, name="Streamer-of-{}".format(carint.ID))
-        self.running = True
-        print("STREAM_DISPLAYER: online")
+        self.running = False
+        self.interface = carint
         self.start()
 
     def run(self):
@@ -30,6 +29,8 @@ class StreamDisplayer(thr.Thread):
         """
         import cv2
         stream = self.interface.framestream()
+        print("STREAM_DISPLAYER: online")
+        self.running = True
         for i, pic in enumerate(stream, start=1):
             # self.interface.out("\rRecieved {:>4} frames of shape {}"
             #                    .format(i, pic.shape), end="")

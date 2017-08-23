@@ -3,11 +3,10 @@ from __future__ import print_function, unicode_literals, absolute_import
 import abc
 import time
 import socket
-import warnings
 import threading as thr
 
 from FIPER.car.component import CaptureDevice, CaptureDeviceMocker
-from FIPER.generic.const import DTYPE, FPS
+from FIPER.generic.const import DTYPE, FPS, STREAM_SERVER_PORT, RC_SERVER_PORT
 
 
 class ChannelBase(object):
@@ -19,8 +18,8 @@ class ChannelBase(object):
         self.running = False
         self.worker = None
 
-    def connect(self, IP, port):
-        self.sock = socket.create_connection((IP, port), timeout=1)
+    def _connectbase(self, IP, port, timeout):
+        self.sock = socket.create_connection((IP, port), timeout=timeout)
 
     def start(self):
         if self.sock is None:
@@ -35,16 +34,16 @@ class ChannelBase(object):
     def run(self):
         raise NotImplementedError
 
-    def cleanup(self, sleep=0):
+    def stop(self):
         self.running = False
-        time.sleep(sleep)
-        if self.sock:
-            self.sock.close()
-        self.sock = None
         self.worker = None
 
     def teardown(self, sleep=0):
-        self.cleanup(sleep)
+        self.stop()
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
+        time.sleep(sleep)
 
     @property
     def type(self):
@@ -61,6 +60,10 @@ class RCReceiver(ChannelBase):
         super(RCReceiver, self).__init__()
         self._recvbuffer = []
         print("RC: online")
+
+    def connect(self, IP):
+        super(RCReceiver, self)._connectbase(IP, RC_SERVER_PORT, timeout=1)
+        print("RCRECEIVER: connected to {}:{}".format(IP, RC_SERVER_PORT))
 
     def run(self):
         self.running = True
@@ -80,7 +83,7 @@ class RCReceiver(ChannelBase):
                 # # # # # # # # # # # # # # # # # # #
 
                 # Clip the buffer, only keep the last 100 items (?)
-                self.cleanup()
+                self.stop()
                 print("RCReceiver: socket closed, worker deleted! Exiting...")
 
 
@@ -99,13 +102,18 @@ class TCPStreamer(ChannelBase):
         self._frameshape = None
         self.eye = CaptureDevice()
         self._determine_frame_shape()
-        print("STREAMER: online")
+        print("TCPSTREAMER: online")
+
+    def connect(self, IP):
+        super(TCPStreamer, self)._connectbase(IP, STREAM_SERVER_PORT, None)
+        print("TCPSTREAMER: connected to {}:{}".format(IP, STREAM_SERVER_PORT))
 
     @property
     def frameshape(self):
         return str(self._frameshape)[1:-1].replace(", ", "x")
 
     def _determine_frame_shape(self):
+        self.eye.open()
         success, frame = self.eye.read()
         if not success:
             success, frame = self._fall_back_to_white_noise_stream()
@@ -113,36 +121,28 @@ class TCPStreamer(ChannelBase):
         self.eye.close()
 
     def _fall_back_to_white_noise_stream(self):
-        warnings.warn("\nCapture device unreachable, falling back to white noise stream!",
-                      RuntimeWarning)
+        print("TCPSTREAMER: Capture device unreachable, falling back to white noise stream!")
         self.eye = CaptureDevice(CaptureDeviceMocker)
-        return self.eye.read()
-
-    def frame(self):
-        """Returns a single frame"""
         return self.eye.read()
 
     def run(self):
         """
-    Obtain frames from the capture device via OpenCV.
-    Send the frames to the UDP client (the main server)
-    """
+        Obtain frames from the capture device via OpenCV.
+        Send the frames to the UDP client (the main server)
+        """
         pushed = 0
-        self.running = True
         self.eye.open()
-        while self.running:
-            success, frame = self.frame()
+        self.running = True
+        for success, frame in self.eye.stream():
             ##########################################
             # Data preprocessing has to be done here #
             serial = frame.astype(DTYPE).tostring()  #
             ##########################################
-            for slc in (serial[i:i + 1024] for i in range(0, len(serial), 1024)):
-                self.sock.send(slc)
-                if not self.running:
-                    break
+            self.sock.sendall(serial)
             pushed += 1
-            print("Pushed {:>3} frames".format(pushed), end="")
-            time.sleep(1./FPS)
+            print("Pushed {:>3} frames".format(pushed))
+            if not self.running:
+                break
+            time.sleep(1. / FPS)
         self.eye.close()
-        self.cleanup()
         print("TCPStreamer: socket and worker deleted! Exiting...")

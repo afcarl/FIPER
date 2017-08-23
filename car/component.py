@@ -7,8 +7,8 @@ import os
 import cv2
 
 # Project imports
-from FIPER.generic.abstract import AbstractCommander
 from FIPER.generic.util import CaptureDeviceMocker
+from FIPER.generic.abstract import AbstractCommander
 
 
 class CaptureDevice(object):
@@ -37,6 +37,12 @@ class CaptureDevice(object):
         if self._eye is None:
             self.open()
         return self._eye.read()
+
+    def stream(self):
+        if self._eye is None:
+            self.open()
+        while self._eye:
+            yield self._eye.read()
 
     def close(self):
         self._eye.release()

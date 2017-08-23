@@ -20,7 +20,6 @@ def debugmain():
     # No context manager in debugmain, I want to see the exceptions,
     server = FleetHandler("127.0.0.1")
     server.mainloop()  # enter the console mainloop
-
     time.sleep(3)
     print("OUTSIDE: Exiting...")
 

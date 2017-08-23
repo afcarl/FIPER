@@ -1,5 +1,6 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+import time
 from threading import Thread
 
 import numpy as np
@@ -143,10 +144,22 @@ class _CarInterface(AbstractInterface):
             # #####################################################
             data = data[datalen:]
 
-    def teardown(self, sleep=3):
+    def perform_remote_shutdown(self, await_remote=2):
         self.send(b"shutdown")
-        super(_CarInterface, self).teardown(sleep)
+        time.sleep(await_remote)
+        status = self.recv()
+        errcode = status if status is None else (status == "car-{}:offline".format(self.ID))
+        msgs = {None: "no corpse response",
+                True: "shut down as expected",
+                False: "unknown status"}
+        print("CARIFC-{}: {}".format(self.ID, msgs[errcode]))
+        return errcode
+
+    def teardown(self, sleep=3):
+        success = self.perform_remote_shutdown(await_remote=2)
+        super(_CarInterface, self).teardown(max(0, sleep-2))
         self.out("Teardown finished!")
+        return success
 
     def __del__(self):
         self.teardown()
