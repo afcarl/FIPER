@@ -60,8 +60,12 @@ class TCPCar(object):
         mytag = "{}-{}:".format(self.entity_type, self.ID).encode()
         self.messenger = Messaging.connect_to(self.server_ip, timeout=1, tag=mytag)
         ProbeHandshake.perform(self.streamer, self.messenger)
+
         self.receiver.connect(self.server_ip)
+        self.receiver.start()
+
         self.streamer.connect(self.server_ip)
+
         self.commander = Commander(
             self.messenger, stream=self.stream_command, shutdown=self.shutdown
         )

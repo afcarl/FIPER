@@ -111,9 +111,9 @@ class FleetHandler(object):
             del self.cars[ID]
 
     def watch_car(self, ID, *args):
-        """Initializes streaming via StreamDisplayer in a separate thread"""
+        """Launches the stream display in a separate thread"""
         if ID not in self.cars:
-            print("SERVER: no such car [{}]".format(ID))
+            print("SERVER: no such car:", ID)
             return
         if ID in self.watchers:
             print("SERVER: already watching", ID)
@@ -121,7 +121,6 @@ class FleetHandler(object):
         self.cars[ID].send(b"stream on")
         time.sleep(1)
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
-        self.watchers[ID].connect()
 
     def stop_watch(self, ID, *args):
         """Tears down the StreamDisplayer and shuts down a stream"""

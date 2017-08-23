@@ -1,13 +1,15 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+import abc
 import time
+import socket
 from threading import Thread
 
 import numpy as np
 
 from .const import DTYPE
+from .abstract import AbstractCommander
 from .messaging import Messaging
-from .abstract import AbstractInterface, AbstractCommander
 from .subsystem import Forwarder
 
 
@@ -101,7 +103,69 @@ class InterfaceFactory(object):
         return ifc
 
 
-class _CarInterface(AbstractInterface):
+class _Interface(object):
+
+    """
+    Base class for all connections,
+    where Entity may be some remote network entity
+    (like a car or a client).
+
+    Groups together the following concepts:
+    - a message-passing TCP channel implemented in generic.messaging
+    - a one-way data connection, used to read or forward a data stream
+    """
+
+    __metaclass__ = abc.ABCMeta
+
+    entity_type = ""
+
+    def __init__(self, ID, dlistener, rclistener, messenger):
+        self.ID = ID
+        self.messenger = messenger
+        self.send = messenger.send
+        self.recv = messenger.recv
+        self.remote_ip = None
+        self.initiated = False
+        try:
+            self._accept_connection_and_validate_ip_addresses(dlistener, "Data")
+            self._accept_connection_and_validate_ip_addresses(rclistener, "RC")
+        except socket.timeout:
+            self.initiated = False
+        else:
+            self.initiated = True
+
+    def _accept_connection_and_validate_ip_addresses(self, sock, typ):
+        self.out("Awaiting {} connection...".format(typ))
+        conn, addr = sock.accept()
+        self.out("{} connection from {}:{}".format(typ, *addr))
+        if self.remote_ip:
+            if self.remote_ip != addr[0]:
+                msg = "Warning! Difference in inbound connection addresses!\n"
+                msg += ("Messaging is on {}\nData is on {}\nRC is on {}"
+                        .format(self.messenger.sock.getsockname()[0],
+                                self.remote_ip, addr[0]))
+                raise RuntimeError(msg)
+        else:
+            self.remote_ip = addr[0]
+        if typ == "Data":
+            self.dsocket = conn
+        else:
+            self.rcsocket = conn
+
+    def out(self, *args, **kw):
+        """Wrapper for print(). Appends car's ID to every output line"""
+        # noinspection PyTypeChecker
+        sep, end = kw.get("sep", " "), kw.get("end", "\n")
+        print("{}IFACE {}: ".format(self.entity_type.upper(), self.ID),
+              *args, sep=sep, end=end)
+
+    def teardown(self, sleep):
+        self.messenger.teardown(sleep)
+        self.dsocket.close()
+        self.rcsocket.close()
+
+
+class _CarInterface(_Interface):
 
     """
     Abstraction of a Car-Server connection.
@@ -165,7 +229,7 @@ class _CarInterface(AbstractInterface):
         self.teardown()
 
 
-class _ClientInterface(AbstractInterface):
+class _ClientInterface(_Interface):
 
     """
     Abstraction of a Client-Server connection.

@@ -6,7 +6,7 @@ import time
 from FIPER.generic.interface import InterfaceFactory
 from FIPER.generic.abstract import AbstractListener
 from FIPER.generic.subsystem import StreamDisplayer
-from generic.probeclient import Probe
+from FIPER.generic.probeclient import Probe
 
 
 class DirectConnection(AbstractListener, Probe):
@@ -49,7 +49,8 @@ class DirectConnection(AbstractListener, Probe):
         channel between the remote car and this class.
         """
         self.interface = InterfaceFactory(
-            self.mlistener, self.dlistener, self.rclistener).get()
+            msock, self.dlistener, self.rclistener
+        ).get()
         self.running = False  # Break the mainloop in AbstractListener
 
     def connect(self, ip):
@@ -91,13 +92,12 @@ class DirectConnection(AbstractListener, Probe):
         if self.interface is None:
             print("DC: no interface! Build a connection first!")
             return
-        self.interface.send("stream on")
+        self.interface.send(b"stream on")
         self.streaming = True
         self.streamer = StreamDisplayer(self.interface)
-        self.streamer.connect(self.interface.IP)
 
     def stop_stream(self):
-        self.interface.send("stream off")
+        self.interface.send(b"stream off")
         self.streamer.teardown(0)
         self.streamer = None
         self.streaming = False
@@ -125,11 +125,11 @@ def testrun():
 
         # Probe car up to 3 times
         for probe in range(3, -1, -1):
-            remote_IP, remote_ID = dc.probe(IP)
+            remote, = dc.probe(IP)
             print("PROBE-{}: reponse: {} from {}"
-                  .format(probe, remote_ID, remote_IP))
+                  .format(probe, *remote))
             time.sleep(3)
-            if remote_ID is not None:
+            if remote[1] is not None:
                 break
         else:
             # If noone answers, return False success code
@@ -143,18 +143,19 @@ def testrun():
         dc.display_stream()
         while 1:
             # noinspection PyUnboundLocalVariable
-            v = raw_input("> ").encode()
-            if v == "quit":
-                dc.stop_stream()
-                dc.teardown(3)
-                break
+            raw_input("Hit <enter> to stop! ")
+            dc.stop_stream()
+            break
+        print("STREAM TEST offline...")
 
     def test_rc(dc):
         msgs = b">", b"<", b"A", b"V"
         choices = []
+        print("RC TEST online...")
         while 1:
             try:
                 chc = choice(msgs)
+                choices.append(chc)
                 dc.rc_command(chc)
                 time.sleep(0.1)
             except KeyboardInterrupt:
@@ -162,11 +163,10 @@ def testrun():
             except Exception as E:
                 print("RC Test caught exception:", E)
                 break
-            if len(choices) >= 50:
+            if len(choices) >= 10:
                 print("".join(choices))
                 choices = []
-        print("RC Test exiting...")
-        dc.teardown(1)
+        print("RC TEST offline...")
 
     car_IP = ("127.0.0.1" if len(sys.argv) == 1 else sys.argv[1])
     connection = DirectConnection(car_IP)
@@ -174,8 +174,10 @@ def testrun():
     success = probe_and_connect(connection, car_IP)
     if not success:
         return
-    # start_display(dcinst)
+    test_stream(connection)
     test_rc(connection)
+    print(" -- TEARING DOWN -- ")
+    connection.teardown(3)
     print(" -- END PROGRAM -- ")
 
 
