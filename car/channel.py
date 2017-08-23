@@ -59,32 +59,31 @@ class RCReceiver(ChannelBase):
     def __init__(self):
         super(RCReceiver, self).__init__()
         self._recvbuffer = []
-        print("RC: online")
 
     def connect(self, IP):
         super(RCReceiver, self)._connectbase(IP, RC_SERVER_PORT, timeout=1)
         print("RCRECEIVER: connected to {}:{}".format(IP, RC_SERVER_PORT))
 
     def run(self):
+        print("RC: online")
         self.running = True
+        commands = []
         while self.running:
             try:
                 data = self.sock.recv(1024)
             except socket.timeout:
-                pass  # print("RC: Timed out!")
-            else:
-                data = data.decode("utf-8")
-                data = data.split(";")
-                print(", ".join(data), end=", ")
+                continue
+            except Exception as E:
+                print("RCRECEIVER: caught exception:", str(E))
+                continue
 
-                # # # # # # # # # # # # # # # # # # #
-                # TODO: write code for this!        #
-                # Push RC commands to hardware      #
-                # # # # # # # # # # # # # # # # # # #
+            data = data.decode("utf-8").split(";")
+            commands.extend(data)
+            if len(commands) >= 10:
+                print("".join(commands))
+                commands = []
 
-                # Clip the buffer, only keep the last 100 items (?)
-                self.stop()
-                print("RCReceiver: socket closed, worker deleted! Exiting...")
+        print("RCReceiver: socket closed, worker deleted! Exiting...")
 
 
 class TCPStreamer(ChannelBase):
