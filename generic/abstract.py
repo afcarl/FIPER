@@ -4,12 +4,74 @@ import abc
 import time
 import socket
 import subprocess
-import threading as thr
 
-from .routines import srvsock
+from .routine import srvsock
 
 
-class Console(object):
+class AbstractInterface(object):
+
+    """
+    Base class for all connections,
+    where Entity may be some remote network entity
+    (like a car or a client).
+
+    Groups together the following concepts:
+    - a message-passing TCP channel implemented in generic.messaging
+    - a one-way data connection, used to read or forward a data stream
+    """
+
+    __metaclass__ = abc.ABCMeta
+
+    entity_type = ""
+
+    def __init__(self, ID, dlistener, rclistener, messenger):
+        self.ID = ID
+        self.messenger = messenger
+        self.send = messenger.send
+        self.recv = messenger.recv
+        self.remote_ip = None
+        self.initiated = False
+        try:
+            self._accept_connection_and_validate_ip_addresses(dlistener, "Data")
+            self._accept_connection_and_validate_ip_addresses(rclistener, "RC")
+        except socket.timeout:
+            self.initiated = False
+        else:
+            self.initiated = True
+
+    def _accept_connection_and_validate_ip_addresses(self, sock, typ):
+        self.out("Awaiting {} connection...".format(typ))
+        conn, addr = sock.accept()
+        self.out("{} connection from {}:{}".format(typ, *addr))
+        if self.remote_ip:
+            if self.remote_ip != addr[0]:
+                msg = "Warning! Difference in inbound connection addresses!\n"
+                msg += ("Messaging is on {}\nData is on {}\nRC is on {}"
+                        .format(self.messenger.sock.getsockname()[0],
+                                self.remote_ip, addr[0]))
+                raise RuntimeError(msg)
+        else:
+            self.remote_ip = addr[0]
+        if typ == "Data":
+            self.dsocket = conn
+        else:
+            self.rcsocket = conn
+
+    def out(self, *args, **kw):
+        """Wrapper for print(). Appends car's ID to every output line"""
+        # noinspection PyTypeChecker
+        sep, end = kw.get("sep", " "), kw.get("end", "\n")
+        print("{}IFACE {}: ".format(self.entity_type.upper(), self.ID),
+              *args, sep=sep, end=end)
+
+    def teardown(self, sleep):
+        self.messenger.teardown(sleep)
+        self.dsocket.close()
+        self.rcsocket.close()
+
+
+class AbstractCommander(object):
+
     """
     Abstraction of a FIPER console.
     Commands should be single words, but an arbitrary number of arguments
@@ -22,17 +84,19 @@ class Console(object):
     the appropriate function will be printed.
     """
 
-    def __init__(self, master_name, status_tag="", commands_dict={}, **commands):
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, master_name, status_tag="", commands_dict=None, **commands):
         """
-        
         :param master_name: needed to build the console prompt
         :param status_tag: also for the console prompt
         :param commands_dict: commands as a string: callable mapping
         :param commands: commands can also be added as kwargs.
         """
-        super(Console, self).__init__()
+        super(AbstractCommander, self).__init__()
         if not commands and not commands_dict:
-            print("ABS_CONSOLE: no command specified!")
+            print("ABS_COMMANDER no command specified!")
+            commands_dict = {} if commands_dict is None else commands_dict
         self.master_name = master_name
         self.status_tag = status_tag
         self.commands = {}
@@ -43,8 +107,9 @@ class Console(object):
             self.commands["help"] = self.help
         if "clear" not in self.commands:
             self.commands["clear"] = lambda: subprocess.call("clear", shell=True)
-        if "shutdown" not in commands:
-            raise RuntimeError("Please provide a shutdown command!")
+        if "shutdown" not in self.commands:
+            print("No shutdown command provided!")
+            self.commands["shutdown"] = self.teardown
         self.running = False
 
     def help(self, *args):
@@ -65,47 +130,54 @@ class Console(object):
 
     @property
     def prompt(self):
-        return " ".join((self.master_name, ("[{}]".format(self.status_tag)
-                                            if self.status_tag else ""), "> "))
+        mfx = "[{}]".format(self.status_tag) if self.status_tag else ""
+        return " ".join((self.master_name, mfx, "> "))
 
-    def run(self):
+    def mainloop(self):
         """
-        Server console main loop (and program main loop)
+        Server console main loop
         """
-        print("CONSOLE: online")
+        print("ABS_COMMANDER online")
+        args = ()
+
         self.running = True
         while self.running:
-            cmd, args = self._read_cmd()
+            cmd, args = self.read_cmd()
             if not cmd:
                 continue
             elif cmd == "shutdown":
                 break
-            else:
-                # try:
-                self.commands[cmd](*args)
-                # except Exception as E:
-                #     print("CONSOLE: command [{}] raised: {}"
-                #           .format(cmd, E.message))
+            try:
+                self.cmd_parser(cmd, *args)
+            except Exception as E:
+                print("CONSOLE: command [{}] raised: {}"
+                      .format(cmd, str(E)))
+        self.running = False
+
         self.commands["shutdown"](*args)
-        print("CONSOLE: Exiting...")
+        print("ABS_COMMANDER Exiting...")
 
-    def _read_cmd(self):
-        c = raw_input(self.prompt).split(" ")
-        cmd = c[0].lower()
-        if len(c) > 1:
-            args = c[1:]
-        else:
-            args = ""
-        return cmd, args
+    @abc.abstractmethod
+    def read_cmd(self):
+        raise NotImplementedError
 
-    def _cmd_parser(self, cmd, args):
-        if cmd[0] not in self.commands:
+    def cmd_parser(self, cmd, *args):
+        if cmd not in self.commands:
             print("CONSOLE: Unknown command:", cmd)
         else:
             self.commands[cmd](*args)
 
+    def teardown(self, sleep=0):
+        self.running = False
+        time.sleep(sleep)
+
+    def __del__(self):
+        if self.running:
+            self.teardown()
+
 
 class AbstractListener(object):
+
     """
     Abstract base class for an entity which acts like a server,
     eg. client in DirectConnection and FleetHandler server.
@@ -113,19 +185,15 @@ class AbstractListener(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, myIP, callback_on_connection):
-        """
-        Listens for entities on the local network.
-        Incomming connections produce a connected socket,
-        on which callback_on_connection is called, so
-        callback_on_connection's signature should look like so:
-        callback(msock), where msock will be the connected socket.
-        """
-        self.msocket = srvsock(myIP, "messaging", timeout=3)
-        self.dsocket = srvsock(myIP, "stream")
-        self.rcsocket = srvsock(myIP, "rc", timeout=1)
+    def __init__(self, myIP):
+        self.mlistener = srvsock(myIP, "messaging", timeout=3)
+        self.dlistener = srvsock(myIP, "stream")
+        self.rclistener = srvsock(myIP, "rc", timeout=1)
         self.running = False
-        self.callback = callback_on_connection
+
+    @abc.abstractmethod
+    def callback(self, msock):
+        raise NotImplementedError
 
     def mainloop(self):
         """
@@ -135,7 +203,7 @@ class AbstractListener(object):
         self.running = True
         while self.running:
             try:
-                conn, addr = self.msocket.accept()
+                conn, addr = self.mlistener.accept()
             except socket.timeout:
                 pass
             else:
@@ -147,54 +215,10 @@ class AbstractListener(object):
     def teardown(self, sleep=2):
         self.running = False
         time.sleep(sleep)
-        self.msocket.close()
-        self.dsocket.close()
-        self.rcsocket.close()
+        self.mlistener.close()
+        self.dlistener.close()
+        self.rclistener.close()
 
     def __del__(self):
         if self.running:
             self.teardown(2)
-
-
-class StreamDisplayer(thr.Thread):
-    """
-    Displays the video streams of cars.
-    Instantiating this class instantly launches it
-    in a separate thread.
-    """
-
-    # TODO: handle the cv2 display's close (X) button...
-
-    def __init__(self, carint):
-        """
-        :param carint: CarInterface instance 
-        """
-        self.interface = carint
-        thr.Thread.__init__(self, name="Streamer-of-{}".format(carint.ID))
-        self.running = True
-        print("STREAM_DISPLAYER: online")
-        self.start()
-
-    def run(self):
-        """
-        Displays the remote car's stream with cv2.imshow()
-        """
-        import cv2
-        stream = self.interface.framestream()
-        for i, pic in enumerate(stream, start=1):
-            # self.interface.out("\rRecieved {:>4} frames of shape {}"
-            #                    .format(i, pic.shape), end="")
-            cv2.imshow("{} Stream".format(self.interface.ID), pic)
-            cv2.waitKey(1)
-            if not self.running:
-                break
-        cv2.destroyWindow("{} Stream".format(self.interface.ID))
-        print("STREAM_DISPLAYER: Exiting...")
-
-    def teardown(self, sleep=1):
-        self.running = False
-        time.sleep(sleep)
-
-    def __del__(self):
-        if self.running:
-            self.teardown(sleep=1)

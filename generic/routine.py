@@ -5,7 +5,7 @@ import socket
 import numpy as np
 
 from .const import (
-    DTYPE, STREAM_SERVER_PORT, MESSAGE_SERVER_PORT, RC_SERVER_PORT
+    DTYPE, STREAM_SERVER_PORT, MESSAGE_SERVER_PORT, RC_SERVER_PORT, CAR_PROBE_PORT
 )
 
 
@@ -25,12 +25,13 @@ def my_ip():
 
 
 def srvsock(ip, connection, timeout=None):
-    assert connection[0] in "dsmr"
+    assert connection[0] in "dsmrp"
     port = {
         "d": STREAM_SERVER_PORT,
         "s": STREAM_SERVER_PORT,
         "m": MESSAGE_SERVER_PORT,
-        "r": RC_SERVER_PORT
+        "r": RC_SERVER_PORT,
+        "p": CAR_PROBE_PORT
     }[connection[0]]
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     if timeout is not None:

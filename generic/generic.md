@@ -4,15 +4,17 @@ See PEP 20 (The Zen of Pyhon), "Explicit is better than implicit."
 
 ## abstract.py
 
-Some high-level components, which are used commonly between entities.
-- **Console** is the implementation of a server console. Its constructor expects a string: callable
-mapping which is used to resolve the commands typed into the prompt.
+Some high-level components, which are used commonly between entities. They are all Abstract
+Base Classes, meaning they have to be subclassed.
+- **AbstractInterface** is the base class for interfaces. Wraps the messanger-streamer-rc trio.
+Unlike **AbstractListener**, this class does the actual communication between entities.
+- **AbstractConsole** is the base class of a console or command parser. Its constructor expects a
+string: callable mapping which is used to resolve the commands typed into the prompt.
+The read_cmd() method has to be overwritten in derivatives.
 It is used by client and server.
 - **AbstractListener**: groups together the three server sockets used to bootstrap a connection with
 a car: messaging (msocket), data (dsocket), RC (rcsocket). Listener does not communicate directly,
-it is only used to build the connection.
-It is used by client and server.
-- **StreamDisplayer**: displays the stream of a CarInterface.
+it is only used to build the connection between network entities.
 It is used by client and server.
 
 ## const.py
@@ -23,20 +25,15 @@ Some commonly used constants are defined here:
   - **MESSAGE_SERVER_PORT**
   - **RC_SERVER_PORT**
   - **CAR_PROBE_PORT**
-- the **DTYPE**, used for data communication.
+- the **DTYPE**, used for data communication (A/V stream).
 - **TICK** is deprecated, **FPS** will be used.
-
-## echo.py
-
-**Echo** mocks the functionality of a car with probing protocol.
 
 ## interfaces.py
 
 This defines the base interface class and various derived classes for entities to interface with each
 other.
 - **interface_factory** coordinates the handshake between a server or client and another network entity.
-Initializes and returns the appropriate object.
-- **NetworkEntity** base class of interfaces. Wraps the communication channels.
+Initializes and returns the appropriate AbstractInterface-derived object.
 - **CarInterface** adds the interface for car entities.
 - **ClientInterface** adds the interface for client entities.
 

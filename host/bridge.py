@@ -1,67 +1,14 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
+# stdlib imports
 import time
-import threading as thr
 from datetime import datetime
 
-from FIPER.generic.interfaces import interface_factory
-from FIPER.generic.abstract import (
-    AbstractListener, StreamDisplayer, Console
-)
-from FIPER.generic.messaging import Probe
+# project imports
+from FIPER.generic.subsystem import StreamDisplayer
 from FIPER.generic.util import Table
-
-
-class Listener(AbstractListener):
-
-    """
-    Singleton class!
-    Listens for incoming car connections for the server.
-    Runs in a separate thread.
-    """
-
-    instances = 0
-
-    def __init__(self, master):
-        if Listener.instances > 0:
-            raise RuntimeError("The Singleton [Listener] is already instantiated!")
-
-        AbstractListener.__init__(self, master.ip, self.handshake)
-
-        self.master = master  # type: FleetHandler
-        self.worker = None  # type: thr.Thread
-
-        Listener.instances += 1
-
-    def start(self):
-        """
-        Creates a new worker thread in case Listener needs to be
-        restarted.
-        self.run is inherited from AbstractListener
-        """
-        if self.worker is not None:
-            print("{}-Attempted start while already running!")
-            return
-        self.worker = thr.Thread(target=self.mainloop, name="Server-Listener")
-        self.worker.start()
-
-    def teardown(self, sleep=2):
-        super(Listener, self).teardown(sleep)
-        self.worker = None
-
-    def handshake(self, msock):
-        """
-        Builds an interface and puts it into the server's appropriate
-        container for later usage.
-        :param msock: connected socket used for message connection
-        """
-        ifc = interface_factory(msock, self.dsocket, self.rcsocket)
-        if not ifc:
-            return
-        if ifc.entity_type == "car":
-            self.master.cars[ifc.ID] = ifc
-        else:
-            self.master.clients[ifc.ID] = ifc
+from FIPER.generic.probeclient import Probe
+from FIPER.host.component import Listener, Console
 
 
 # noinspection PyUnusedLocal
@@ -80,39 +27,43 @@ class FleetHandler(object):
     and to coordinate the shutdown of the cars on this side, etc.
     """
 
+    the_one = None
+
     def __init__(self, myIP):
         self.clients = {}
         self.ip = myIP
         self.cars = {}
         self.watchers = {}
         self.since = datetime.now()
-        self._cars_online = "Unknown, use 'sweep' to find out!"
-
-        self.listener = Listener(self)
-        self.console = Console("FIPER-Server", **{
-            "cars": self.printout_cars,
-            "kill": self.kill_car,
-            "watch": self.watch_car,
-            "unwatch": self.stop_watch,
-            "shutdown": self.shutdown,
-            "status": self.report,
-            "message": self.message,
-            "probe": self.probe,
-            "connect": self.connect,
-            "sweep": self.sweep
-        })
 
         self.status = "Idle"
+        self.console = Console(
+            master_name="FIPER-Server",
+            status_tag=self.status,
+            commands_dict={
+                "cars": self.printout_cars,
+                "kill": self.kill_car,
+                "watch": self.watch_car,
+                "unwatch": self.stop_watch,
+                "shutdown": self.shutdown,
+                "status": self.report,
+                "message": self.message,
+                "probe": self.probe,
+                "connect": Probe.initiate,
+                "sweep": self.sweep
+            }
+        )
+
+        self.listener = Listener(self)
+        self.listener.start()
         print("SERVER: online")
+
+    def mainloop(self):
+        self.console.mainloop()
 
     def printout_cars(self, *args):
         """List the current car-connections"""
         print("Cars online:\n{}\n".format("\n".join(self.cars)))
-
-    @staticmethod
-    def connect(*ips):
-        """Initiate connection with the supplied ip address(es)"""
-        Probe.initiate(*ips)
 
     @staticmethod
     def probe(*ips):
@@ -155,20 +106,9 @@ class FleetHandler(object):
             return
         if ID in self.watchers:
             self.stop_watch(ID)
-        carifc = self.cars[ID]
-        carifc.send("shutdown")
-        time.sleep(3)
-
-        status = carifc.recv()
-        if status is None:
-            print("SERVER: car-{} didn't shut down as expected!".format(ID))
-        elif status == "{} offline".format(ID):
-            print("SERVER: car-{} shut down as expected".format(ID))
-        else:
-            print("SERVER: received unknown status from car-{}: {}"
-                  .format(ID, status))
-
-        del self.cars[ID]
+        success = self.cars[ID].teardown(sleep=1)
+        if success:
+            del self.cars[ID]
 
     def watch_car(self, ID, *args):
         """Initializes streaming via StreamDisplayer in a separate thread"""
@@ -178,18 +118,18 @@ class FleetHandler(object):
         if ID in self.watchers:
             print("SERVER: already watching", ID)
             return
-        self.cars[ID].send("stream on")
+        self.cars[ID].send(b"stream on")
         time.sleep(1)
         self.watchers[ID] = StreamDisplayer(self.cars[ID])
+        self.watchers[ID].connect()
 
     def stop_watch(self, ID, *args):
         """Tears down the StreamDisplayer and shuts down a stream"""
         if ID not in self.watchers:
             print("SERVER: {} is not being watched!".format(ID))
             return
-        self.cars[ID].send("stream off")
-        self.watchers[ID].teardown()
-        time.sleep(3)
+        self.cars[ID].send(b"stream off")
+        self.watchers[ID].teardown(sleep=1)
         del self.watchers[ID]
 
     def shutdown(self, *args):
@@ -197,22 +137,13 @@ class FleetHandler(object):
 
         self.listener.teardown(1)
 
-        for ID, car in sorted(self.cars.items()):
-            if ID in self.watchers:
-                self.stop_watch(ID)
-            car.send("shutdown")
-
         rounds = 0
         while self.cars:
             print("SERVER: Car corpse collection round {}/{}".format(rounds+1, 4))
-            time.sleep(3)
-            for ID, car in sorted(self.cars.items()):
-                msg = car.recv()
-                if msg != "car-{}:offline".format(ID):
-                    print("SERVER: Received wrong corpse message:", msg)
-                    continue
-                self.cars[ID].teardown()
-                del self.cars[ID]
+            for ID in self.cars:
+                if ID in self.watchers:
+                    self.stop_watch(ID)
+                self.kill_car(ID)
 
             if rounds >= 3:
                 print("SERVER: cars: [{}] didn't shut down correctly"
@@ -221,6 +152,7 @@ class FleetHandler(object):
             rounds += 1
         else:
             print("SERVER: All cars shut down correctly!")
+
         print("SERVER: Exiting...")
 
     def report(self, *args):
@@ -232,3 +164,17 @@ class FleetHandler(object):
         repchain += "Up since " + self.since.strftime("%Y.%m.%d %H:%M:%S") + "\n"
         repchain += "Cars online: {}\n".format(len(self.cars))
         print("\n" + repchain + "\n")
+
+    def __enter__(self, srvinstance):
+        """Context enter method"""
+        if FleetHandler.the_one is not None:
+            FleetHandler.the_one = srvinstance
+        else:
+            raise RuntimeError("Only one can remain!")
+        return srvinstance
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context exit method, ensures proper shutdown"""
+        if FleetHandler.the_one is not None:
+            FleetHandler.the_one.shutdown()
+            FleetHandler.the_one = None

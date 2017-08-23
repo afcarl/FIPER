@@ -7,7 +7,7 @@ from __future__ import absolute_import, unicode_literals, print_function
 
 import sys
 
-from FIPER.car.tcp_car import TCPCar
+from FIPER.car.car import TCPCar
 
 
 def readargs():
@@ -16,7 +16,8 @@ def readargs():
 
     pleading = "Please supply "
     question = ["the local IP address of this Car",
-                "a unique ID for this Car"]
+                "a unique ID for this Car",
+                "the IP of a running server [optional]"]
     return [raw_input(pleading + q + " > ") for q in question]
 
 
