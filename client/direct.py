@@ -9,7 +9,7 @@ from FIPER.generic.subsystem import StreamDisplayer
 from FIPER.generic.probeclient import Probe
 
 
-class DirectConnection(AbstractListener, Probe):
+class DirectConnection(object):
 
     """
     Abstraction of a direct connection with a car
@@ -36,33 +36,35 @@ class DirectConnection(AbstractListener, Probe):
         """
         :param myIP: the local IP address
         """
-        super(DirectConnection, self).__init__(myIP)
         self.target = None
         self.interface = None
-        self.streamer = None  # type: StreamDisplayer
+        self.streamer = None
         self.streaming = False
+        self.listener = self._OneTimeListener(self, myIP)
+        self.probeobj = Probe()
 
-    def callback(self, msock):
-        """
-        This method is called by AbstractListener.mainloop() on the newly
-        created message-connection socket which creates the messaging
-        channel between the remote car and this class.
-        """
-        self.interface = InterfaceFactory(
-            msock, self.dlistener, self.rclistener
-        ).get()
-        self.running = False  # Break the mainloop in AbstractListener
+    def probe(self, ip):
+        _, ID = self.probeobj.probe(ip)[0]
+        print("DC: probed {} response: {}".format(ip, ID))
+        return ID
+
+    def sweep(self, *ips):
+        responses = self.probeobj.probe(*ips)
+        print("PROBE RESPONSES:")
+        for ip, response in responses:
+            print("{}: {}".format(ip, response))
+        return responses
 
     def connect(self, ip):
         """
         Initiates via the probe protocol, then bootstraps the connection
         via AbstractListener.mainloop()
         """
-        rIP, rID = self.initiate(ip)
+        rIP, rID = Probe.initiate(ip)
         if rIP == ip and rID is not None:
             # Enter AbstractListener's mainloop and bootstrap the connetion
             try:
-                self.mainloop()
+                self.listener.mainloop()
             except Exception as E:
                 print("DC: exception in AbstractListener mainloop:", E)
                 return False
@@ -94,12 +96,13 @@ class DirectConnection(AbstractListener, Probe):
             return
         self.interface.send(b"stream on")
         self.streaming = True
-        self.streamer = StreamDisplayer(self.interface)
+        self.streamer = StreamDisplayer(self.interface)  # launches the thread!
 
     def stop_stream(self):
         self.interface.send(b"stream off")
-        self.streamer.teardown(0)
-        self.streamer = None
+        if self.streamer is not None:
+            self.streamer.teardown(0)
+            self.streamer = None
         self.streaming = False
 
     def teardown(self, sleep=0):
@@ -107,17 +110,25 @@ class DirectConnection(AbstractListener, Probe):
             self.stop_stream()
         if self.interface is not None:
             self.interface.teardown()
-        super(DirectConnection, self).teardown(sleep)
+        time.sleep(sleep)
 
     def rc_command(self, *commands):
-        for cmd in commands:
-            ############################
-            # Maybe validate cmd here? #
-            ############################
-            self.interface.rcsocket.send(cmd)
+        self.interface.rcsocket.sendall(b"".join(commands))
+
+    class _OneTimeListener(AbstractListener):
+
+        def __init__(self, master, myIP):
+            super(DirectConnection._OneTimeListener, self).__init__(myIP)
+            self.master = master
+
+        def callback(self, msock):
+            self.master.interface = InterfaceFactory(
+                msock, self.dlistener, self.rclistener
+            ).get()
+            self.running = False  # Break the mainloop in AbstractListener
 
 
-def testrun():
+def run():
 
     from random import choice
 
@@ -125,11 +136,11 @@ def testrun():
 
         # Probe car up to 3 times
         for probe in range(3, -1, -1):
-            remote, = dc.probe(IP)
+            ID = dc.probe(IP)
             print("PROBE-{}: reponse: {} from {}"
-                  .format(probe, *remote))
+                  .format(probe, IP, ID))
             time.sleep(3)
-            if remote[1] is not None:
+            if ID is not None:
                 break
         else:
             # If noone answers, return False success code
@@ -182,4 +193,4 @@ def testrun():
 
 
 if __name__ == '__main__':
-    testrun()
+    run()

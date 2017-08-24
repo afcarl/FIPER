@@ -24,15 +24,15 @@ def my_ip():
     return address
 
 
-def srvsock(ip, connection, timeout=None):
-    assert connection[0] in "dsmrp"
+def srvsock(ip, channel, timeout=None):
+    assert channel[0] in "dsmrp"
     port = {
         "d": STREAM_SERVER_PORT,
         "s": STREAM_SERVER_PORT,
         "m": MESSAGE_SERVER_PORT,
         "r": RC_SERVER_PORT,
         "p": CAR_PROBE_PORT
-    }[connection[0]]
+    }[channel[0]]
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     if timeout is not None:
         s.settimeout(timeout)

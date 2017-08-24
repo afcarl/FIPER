@@ -46,7 +46,7 @@ class ProbeServer(object):
             print("PROBESRV: invalid message received! Ignoring...")
 
     def mainloop(self):
-        self.sock = srvsock(self.IP, connection="probe", timeout=1)
+        self.sock = srvsock(self.IP, channel="probe", timeout=1)
         print("PROBESRV: Awaiting connection... Hit Ctrl-C to break!".format(self.ID))
         while 1:
             try:
