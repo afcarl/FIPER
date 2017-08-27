@@ -31,7 +31,7 @@ class InterfaceFactory(object):
         :param rclistener: unconnected server socket awaiting RC connections
         """
 
-        self.messenger = Messaging(msock, None)
+        self.messenger = Messaging(msock)
         self.dlistener = dlistener
         self.rclistener = rclistener
         self.introduction = None

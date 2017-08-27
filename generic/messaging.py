@@ -14,19 +14,18 @@ class Messaging(object):
     message-passing between the car and the server.
     """
 
-    def __init__(self, conn, addr, tag=b""):
+    def __init__(self, conn, tag=b"", sendtick=0.5):
         """
-        :param addr:
         :param conn: socket, around which the Messenger is wrapped
         :param tag: optional tag, concatenated to the beginning of every message
         """
         self.tag = tag
+        self.sendtick = sendtick
         self.recvbuffer = []
         self.sendbuffer = []
         self.sock = conn
-        self.remote = addr
-        self.job_in = thr.Thread(target=self.flow_in)
-        self.job_out = thr.Thread(target=self.flow_out)
+        self.job_in = thr.Thread(target=self._flow_in)
+        self.job_out = thr.Thread(target=self._flow_out)
 
         if self.sock.gettimeout() <= 0:
             print("MESSENGER: socket received has timeout:", self.sock.gettimeout())
@@ -41,9 +40,9 @@ class Messaging(object):
     def connect_to(cls, IP, tag=b"", timeout=1):
         addr = (IP, MESSAGE_SERVER_PORT)
         conn = socket.create_connection(addr, timeout=timeout)
-        return cls(conn, addr, tag)
+        return cls(conn, tag)
 
-    def flow_out(self):
+    def _flow_out(self):
         """
         This method is responsible for the sending of
         messages from the send buffer.
@@ -55,10 +54,10 @@ class Messaging(object):
                 msg = self.sendbuffer.pop(0)
                 for slc in (msg[i:i+1024] for i in range(0, len(msg), 1024)):
                     self.sock.send(slc)
-            time.sleep(0.5)
+            time.sleep(self.sendtick)
         print("MESSENGER: flow_out exiting...")
 
-    def flow_in(self):
+    def _flow_in(self):
         """
         This method is responsible to receive and chop up the
         incoming messages. The messages are stored in the receive
@@ -71,7 +70,7 @@ class Messaging(object):
                 try:
                     slc = self.sock.recv(1024)
                 except socket.timeout:
-                    pass
+                    time.sleep(0.1)
                 except socket.error as E:
                     print("MESSENGER: caught socket exception:", E)
                     self.teardown(1)
