@@ -1,8 +1,7 @@
 """
 BUG / HIaNYZo FEATURE REPORT:
-- child ablak megnyitasa utan melleklikkeles eseten a focus elveszik es az enter / escape leutes hatastalan
-- child ablak megnyitasa utan main menu gombok nem tunnek el
-- zene hianyzik
+- child ablak megnyitasa utan melleklikkeles eseten a focus elveszik es az enter / escape leutes hatastalan (windows 7)
+- child ablak megnyitasa utan main menu gombok nem tunnek el (windows 7)
 - hangeffektek hianyzanak
 """
 
