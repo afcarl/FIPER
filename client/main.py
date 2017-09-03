@@ -13,6 +13,7 @@ import sys
 import time
 from wx import media
 
+
 class MainFrame(wx.Frame):
 
 	def __init__(self):
@@ -26,9 +27,10 @@ class MainFrame(wx.Frame):
 		# Set Background color black
 		self.SetBackgroundColour('black')
 		# Erase background from designated areas by DC ( for the buttons )
+		self.music()
 		self.Bind(wx.EVT_ERASE_BACKGROUND, self.set_background)
 		#
-		# self.music()
+		
 		# self.Bind('<Escape>', self.quit_window(wx.EVT_BUTTON) )
 		# Place buttons on background
 		self.place_buttons() 
@@ -309,25 +311,23 @@ class MainFrame(wx.Frame):
 	def devastation(self, return_value):
 		sys.exit(return_value)
 			
-	# def music(self):
-		# self.music = wx.Sound('audio/music/carpenter_brut.wav')
-		# if self.music.IsOk():
-			# self.music.Play(wx.SOUND_ASYNC)
-		# else:
-			# print "Missing or invalid sound file", "Error"
-			
-	def music(self):
-		music_file = 'audio/music/carpenter_brut.wav'
-		self.mediaPlayer = wx.media.MediaCtrl(self,1)
-		self.mediaPlayer.Load(music_file)
+	def song_is_loaded(self,e):
 		self.mediaPlayer.Play()
 		
-		"""
+	def song_is_ended(self,e):
+		self.mediaPlayer.Play()
 		
-		https://www.blog.pythonlibrary.org/2010/04/20/wxpython-creating-a-simple-mp3-player/
+	def music(self):
+		music_file = 'audio/music/carpenter_brut.mp3'
+		self.Bind(wx.media.EVT_MEDIA_LOADED, self.song_is_loaded)
+		self.Bind(wx.media.EVT_MEDIA_STOP, self.song_is_ended)
+		#in case of windows
+		if sys.platform == 'win32':
+			self.mediaPlayer = wx.media.MediaCtrl(parent=self, szBackend=wx.media.MEDIABACKEND_WMP10)
+		else:
+			self.mediaPlayer = wx.media.MediaCtrl(parent=self)
+		self.mediaPlayer.Load(music_file)
 		
-		"""
-
 	def exit(self, event):
 		sys.exit(0)
 	
