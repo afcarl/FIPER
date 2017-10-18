@@ -34,13 +34,14 @@ NewFrame::NewFrame(int ID, const wxString& title, const wxPoint& pos, const wxSi
 
 	}
 }
+
 void NewFrame::key_stroke_callback(wxKeyEvent& event)
 {
 	if (event.GetKeyCode() == WXK_ESCAPE)
 	{
 		// FADE OUT
 		int tp = 200;
-		while(tp)
+		while (tp)
 		{
 			this->SetTransparent(tp);
 			Sleep(10);
@@ -49,7 +50,7 @@ void NewFrame::key_stroke_callback(wxKeyEvent& event)
 			// Keep Cursor Shape for new Frame
 			SetCursor(wxCursor("image/menu/cursor.ico", wxBitmapType::wxBITMAP_TYPE_ICO, 6, 28));
 			//this->instanceCounter = 0;
-				
+
 			//this->parent.show_buttons();
 			if (event.GetKeyCode() == WXK_RETURN)
 			{
@@ -57,9 +58,19 @@ void NewFrame::key_stroke_callback(wxKeyEvent& event)
 				//event.Skip();
 			}
 		}
-		this->Close();
+		MainFrame* window = wxDynamicCast(parent, MainFrame);
+		if (window != NULL)
+		{
+			window->show_buttons();
+		}
+		else
+		{
+			wxMessageBox(wxT("Main is NULL"));
+		}
+		this->Destroy();
 	}
 }
+
 void NewFrame::OnPaint(wxPaintEvent & evt)
 {
 	

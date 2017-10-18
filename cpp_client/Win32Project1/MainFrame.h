@@ -1,9 +1,11 @@
 #pragma once
 #include <wx/wxprec.h>
 #include <wx/wx.h>
+#include <wx/msgdlg.h>
 #include "NewFrame.h"
 #include "ids.h"
 
+class NewFrame;
 
 class MainFrame : public wxFrame
 {
@@ -13,11 +15,13 @@ public:
 	void SetFocus(wxFocusEvent &event);
 	void Click(wxMouseEvent& event);
 	void OnNewFrameClose(wxCloseEvent& event);
+	void OnErase(wxEraseEvent& event);
 	~MainFrame();
+	void show_buttons();
 private:
 	void SetButtonTextures();
 	void PlaceButtons();
-	//void show_buttons();
+	
 	void HideButtons();
 	void OnPaint(wxPaintEvent & evt);
 	void OnExit(wxCommandEvent& event);
@@ -26,6 +30,8 @@ private:
 	int width;
 	int height;
 
+	//Layout
+	wxFrame* Buttons;
 	//windows
 	NewFrame* newFrame;
 
@@ -34,7 +40,7 @@ private:
 	wxBitmapButton* options_button;
 	wxBitmapButton* quit_button;
 
-
+	bool button_hide;
 	//button textures
 	wxBitmap* connect_skin;
 	wxBitmap* connect_skin_hover;

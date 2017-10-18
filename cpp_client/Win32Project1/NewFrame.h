@@ -1,12 +1,12 @@
 #pragma once
 #include<wx/wx.h>
 #include "ids.h"
+#include "MainFrame.h"
 
 class NewFrame : public wxFrame
 {
 public:
 	NewFrame(int ID, const wxString& title, const wxPoint& pos, const wxSize& size, wxWindow* parent);
-	void KillFocus();
 
 	wxBitmapButton* okButton;
 	wxBitmapButton* cancelButton;

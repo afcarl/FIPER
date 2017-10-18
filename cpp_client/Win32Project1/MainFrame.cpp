@@ -7,11 +7,11 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
 	wxDisplaySize(&width, &height);
 	this->HeightDefault(height);
 	this->WidthDefault(width);
-
+	button_hide = false;
 	SetBackgroundColour("Black");
 	// Image sources
 	SetBackgroundStyle(wxBackgroundStyle::wxBG_STYLE_CUSTOM);
-	wxInitAllImageHandlers();
+	wxInitAllImageHandlers(); //todo: myabe we dont need all
 	SetButtonTextures();
 }
 
@@ -29,8 +29,7 @@ void MainFrame::Click(wxMouseEvent& event)
 
 void MainFrame::OnConnect(wxCommandEvent& event)
 {
-	if (!newFrame)
-	{
+	HideButtons();
 		int x_pos = (this->width * 0.025);
 		int	y_pos = (this->height * 0.025);
 		int	width = (this->width * 0.95);
@@ -38,11 +37,6 @@ void MainFrame::OnConnect(wxCommandEvent& event)
 		this->Connect(WINDOW_CONNECT, wxEVT_CLOSE_WINDOW, wxCloseEventHandler(MainFrame::OnNewFrameClose));
 		newFrame = new NewFrame(WINDOW_CONNECT, " C O N N E C T ", wxPoint(x_pos, y_pos), wxSize(width, height), this);
 		
-	}
-	else
-	{
-		newFrame->SetFocus();
-	}
 	//optionsWindow->Bind(wxEVT_KILL_FOCUS, &NewFrame::KillFocus
 
 	/*wxListBox connect_list(connectWindow, WINDOW_CONNECT, wxPoint(width*0.05, height*0.4),
@@ -80,6 +74,7 @@ void MainFrame::OnConnect(wxCommandEvent& event)
 }
 void MainFrame::OnOptions(wxCommandEvent& event)
 {
+	HideButtons();
 	int x_pos = (this->width * 0.025);
 	int	y_pos = (this->height * 0.025);
 	int	width = (this->width * 0.95);
@@ -105,7 +100,6 @@ void MainFrame::SetFocus(wxFocusEvent &event)
 
 void MainFrame::OnPaint(wxPaintEvent & evt)
 {
-	
 	wxImage background_image("image/menu/bgnd.jpg", wxBITMAP_TYPE_JPEG);
 	wxImage fiper_logo("image/menu/fiper_logo.png", wxBITMAP_TYPE_PNG);
 	wxBitmap backgroundBm(background_image.Scale(width, height, wxImageResizeQuality::wxIMAGE_QUALITY_HIGH));
@@ -121,7 +115,10 @@ void MainFrame::OnPaint(wxPaintEvent & evt)
 	dc.DrawText("Contact: GAL.MATEO @ GMAIL.COM", width*0.77, height*0.97);
 	// Custom cursor for the application
 	SetCursor(wxCursor("image/menu/cursor.ico", wxBitmapType::wxBITMAP_TYPE_ICO));
-	PlaceButtons();
+	if (button_hide == false)
+	{
+		PlaceButtons();
+	}
 }
 void MainFrame::SetButtonTextures()
 {
@@ -174,20 +171,57 @@ void MainFrame::PlaceButtons()
 	quit_button->SetBitmapSelected(*quit_skin_click);
 	//quit_button.Bind(wx.EVT_BUTTON, quit_window);
 }
-/*
+
+
 void MainFrame::show_buttons()
 {
 
-	this->connect_button->Show();
-	//options_button.Show()
-	//quit_button.Show()
-}*/
+	/*this->connect_button->Show();
+	options_button->Show();
+	quit_button->Show();*/
+	button_hide = false;
+    PlaceButtons();
+	//wxClientDC dc(this);
+	/*dc.dr
+	wxImage background_image("image/menu/bgnd.jpg", wxBITMAP_TYPE_JPEG);
+	wxImage fiper_logo("image/menu/fiper_logo.png", wxBITMAP_TYPE_PNG);
+	wxBitmap backgroundBm(background_image.Scale(width, height, wxImageResizeQuality::wxIMAGE_QUALITY_HIGH));
+	wxBitmap logoBm(fiper_logo.Scale(width*0.4, height*0.3, wxImageResizeQuality::wxIMAGE_QUALITY_HIGH));
+	dc.Clear();
+	dc.DrawBitmap(backgroundBm, 0, 0, true);
+	dc.DrawBitmap(logoBm, 40, -10, false);
+	/*wxFont font(14, wxFONTFAMILY_TELETYPE, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false);
+	dc.SetFont(font);*/
+	/*dc.SetTextForeground("white");
+	dc.DrawText("Version: Pre-Alpha", this->width*0.005, this->height*0.97);
+	dc.DrawText("Contact: GAL.MATEO @ GMAIL.COM", width*0.77, height*0.97);*/
+}
 
 void MainFrame::HideButtons()
 {
-	connect_button->Hide();
+	/*connect_button->Hide();
 	options_button->Hide();
-	quit_button->Hide();
+	quit_button->Hide();*/
+
+	connect_button->Destroy();
+	options_button->Destroy();
+	quit_button->Destroy();
+	button_hide = true;
+	wxClientDC dc(this);
+	
+	wxImage background_image("image/menu/bgnd.jpg", wxBITMAP_TYPE_JPEG);
+	wxImage fiper_logo("image/menu/fiper_logo.png", wxBITMAP_TYPE_PNG);
+	wxBitmap backgroundBm(background_image.Scale(width, height, wxImageResizeQuality::wxIMAGE_QUALITY_HIGH));
+	wxBitmap logoBm(fiper_logo.Scale(width*0.4, height*0.3, wxImageResizeQuality::wxIMAGE_QUALITY_HIGH));
+	dc.Clear();
+	dc.DrawBitmap(backgroundBm, 0, 0, true);
+	dc.DrawBitmap(logoBm, 40, -10, false);
+	wxFont font(14, wxFONTFAMILY_TELETYPE, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false);
+	dc.SetFont(font);
+	dc.SetTextForeground("white");
+	dc.DrawText("Version: Pre-Alpha", this->width*0.005, this->height*0.97);
+	dc.DrawText("Contact: GAL.MATEO @ GMAIL.COM", width*0.77, height*0.97);
+	
 }
 
 MainFrame::~MainFrame()
@@ -216,4 +250,17 @@ MainFrame::~MainFrame()
 void MainFrame::OnNewFrameClose(wxCloseEvent& event)
 {
 	newFrame = NULL;
+}
+
+void MainFrame::OnErase(wxEraseEvent& event)
+{
+	/*wxClientDC* clientDC = NULL;
+	if (!event.GetDC())
+		clientDC = new wxClientDC(this);
+	wxDC* dc = clientDC ? clientDC : event.GetDC();
+	wxSize sz = GetClientSize();
+	wxEffects effects;
+	effects.TileBitmap(wxRect(0, 0, sz.x, sz.y), *dc, m_bitmap);
+	if (clientDC)
+		delete clientDC;*/
 }

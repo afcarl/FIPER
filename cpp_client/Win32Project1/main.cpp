@@ -18,6 +18,7 @@ EVT_BUTTON(BUTTON_OPTIONS, MainFrame::OnOptions) // Tell the OS to run MainFrame
 EVT_LEFT_UP(MainFrame::Click)
 EVT_KILL_FOCUS(MainFrame::KillFocus)
 EVT_SET_FOCUS(MainFrame::SetFocus)
+EVT_ERASE_BACKGROUND(MainFrame::OnErase)
 wxEND_EVENT_TABLE()
 
 wxBEGIN_EVENT_TABLE(NewFrame, wxFrame)
