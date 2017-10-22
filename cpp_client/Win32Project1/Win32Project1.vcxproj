@@ -71,8 +71,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Users\HegedűsAttila\Desktop\wxcxx\include;C:\Users\HegedűsAttila\Desktop\wxcxx\include\msvc;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\HegedűsAttila\Desktop\wxcxx\lib\vc_lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\wx\include;C:\wx\include\msvc;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\wx\lib\vc_lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
