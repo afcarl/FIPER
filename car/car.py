@@ -3,7 +3,6 @@ from __future__ import print_function, absolute_import, unicode_literals
 # Project imports
 from FIPER.car.channel import TCPStreamer, RCReceiver
 from FIPER.car.component import Commander
-from FIPER.car.probeserver import ProbeServer, ProbeHandshake
 from FIPER.generic.messaging import Messaging
 
 
@@ -18,63 +17,27 @@ class TCPCar(object):
 
     entity_type = "car"
 
-    def __init__(self, myID, myIP):
+    def __init__(self, myID):
         self.ID = myID
-        self.ip = myIP
 
         self.streamer = TCPStreamer()
         self.receiver = RCReceiver()
         self.messenger = None  # type: Messaging
         self.commander = None  # type: Commander
-        self.server_ip = None
         self.online = False
 
-    def mainloop(self):
-        """
-        Loop for the main thread
-        """
-        if not self.idle():
-            self.shutdown()
-            return
-        if not self.connect():
-            self.shutdown()
-            return
-        self.commander.mainloop()
-
-    def idle(self):
-        try:
-            while not self.server_ip:
-                self.server_ip = ProbeServer(self.ip, self.ID).mainloop()
-        except KeyboardInterrupt:
-            print("CAR: Cancelled connection! Exiting...")
-            return False
-        except Exception as E:
-            print("CAR: ProbeServer failed with exception:", E)
-            return False
-        if self.server_ip is None:
-            return False
-        return True
-
-    def connect(self, ip=None):
+    def run(self, server_ip):
         """Establishes the messaging connection with a server"""
-        if ip is None:
-            ip = self.server_ip
-        else:
-            self.server_ip = ip
         mytag = "{}-{}:".format(self.entity_type, self.ID).encode()
-        self.messenger = Messaging.connect_to(ip, timeout=1, tag=mytag)
-        ProbeHandshake.perform(self.streamer, self.messenger)
-
-        self.receiver.connect(ip)
+        self.messenger = Messaging.connect_to(server_ip, timeout=1, tag=mytag)
+        self.receiver.connect(server_ip)
         self.receiver.start()
-
-        self.streamer.connect(ip)
-
+        self.streamer.connect(server_ip)
         self.commander = Commander(
             self.messenger, stream=self.stream_command, shutdown=self.shutdown
         )
-        self.out("connected to", ip)
-        return True
+        self.out("connected to", server_ip)
+        self.commander.mainloop()
 
     def out(self, *args, **kw):
         """Wrapper for print(). Appends car's ID to every output line"""
