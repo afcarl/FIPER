@@ -33,15 +33,15 @@ class TCPCar(object):
         """
         Loop for the main thread
         """
-        if not self._listen_for_server_probe_on_thin_channel():
+        if not self.idle():
             self.shutdown()
             return
-        if not self._establish_connection_on_thick_channels():
+        if not self.connect():
             self.shutdown()
             return
         self.commander.mainloop()
 
-    def _listen_for_server_probe_on_thin_channel(self):
+    def idle(self):
         try:
             while not self.server_ip:
                 self.server_ip = ProbeServer(self.ip, self.ID).mainloop()
@@ -55,21 +55,25 @@ class TCPCar(object):
             return False
         return True
 
-    def _establish_connection_on_thick_channels(self):
+    def connect(self, ip=None):
         """Establishes the messaging connection with a server"""
+        if ip is None:
+            ip = self.server_ip
+        else:
+            self.server_ip = ip
         mytag = "{}-{}:".format(self.entity_type, self.ID).encode()
-        self.messenger = Messaging.connect_to(self.server_ip, timeout=1, tag=mytag)
+        self.messenger = Messaging.connect_to(ip, timeout=1, tag=mytag)
         ProbeHandshake.perform(self.streamer, self.messenger)
 
-        self.receiver.connect(self.server_ip)
+        self.receiver.connect(ip)
         self.receiver.start()
 
-        self.streamer.connect(self.server_ip)
+        self.streamer.connect(ip)
 
         self.commander = Commander(
             self.messenger, stream=self.stream_command, shutdown=self.shutdown
         )
-        self.out("connected to", self.server_ip)
+        self.out("connected to", ip)
         return True
 
     def out(self, *args, **kw):
