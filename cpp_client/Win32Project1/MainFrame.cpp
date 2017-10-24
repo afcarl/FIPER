@@ -22,12 +22,6 @@ void MainFrame::OnExit(wxCommandEvent& event)
 	Close(TRUE); // Tells the OS to quit running this process
 }
 
-void MainFrame::Click(wxMouseEvent& event)
-{
-	if (newFrame)
-		newFrame->SetFocus();
-}
-
 void MainFrame::OnConnect(wxCommandEvent& event)
 {
 	HideButtons();
@@ -69,7 +63,7 @@ void MainFrame::OnPaint(wxPaintEvent & evt)
 {
 	if (mediaPlayer == nullptr)
 	{
-		Music();
+	//	Music();
 	}
 	wxImage background_image("image/menu/bgnd.jpg", wxBITMAP_TYPE_JPEG);
 	wxImage fiper_logo("image/menu/fiper_logo.png", wxBITMAP_TYPE_PNG);

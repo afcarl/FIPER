@@ -27,7 +27,7 @@ NewFrame::NewFrame(int ID, const wxString& title, const wxPoint& pos, const wxSi
 		this->SetBackgroundColour((30, 30, 30));
 
 		// Keep Cursor Shape for new Frame
-		SetCursor(wxCursor("image/menu/cursor.ico", wxBitmapType::wxBITMAP_TYPE_ICO, 6, 28));
+		SetCursor(wxCursor("image/menu/cursor.ico", wxBitmapType::wxBITMAP_TYPE_ICO));
 		this->Show();
 		//this->Bind(wxEVT_CHAR_HOOK, &NewFrame::key_stroke_callback);
 
@@ -74,11 +74,11 @@ void NewFrame::key_stroke_callback(wxKeyEvent& event)
 
 void NewFrame::OnPaint(wxPaintEvent & evt)
 {
-	static int i = 0;
+	/*static int i = 0;
 	std::string str = std::to_string(++i);
 	wxString ws(str);
-	wxMessageBox(ws);
-	/*
+	wxMessageBox(ws);*/
+	
 	int width, height;
 	this->GetSize(&width, &height);
 	
@@ -90,12 +90,12 @@ void NewFrame::OnPaint(wxPaintEvent & evt)
 	slider = new wxSlider(this, SLIDER_VOLUME, 100, 0, 100, wxPoint(width*0.3 ,30), wxSize(width*0.5, 30), wxSL_HORIZONTAL | wxSL_AUTOTICKS);
 
 	int ok_button_x = width * 0.79;
-	int ok_button_y = height * 0.8;*/
-	/*okButton = new wxBitmapButton(this, WINDOW_CONNECT, *ok_skin,
+	int ok_button_y = height * 0.8;
+	okButton = new wxBitmapButton(this, WINDOW_CONNECT, *ok_skin,
 		 wxPoint(ok_button_x, ok_button_y), wxSize(260, 130));
 
 	okButton->SetBitmapHover(*ok_skin_hover);
-	okButton->SetBitmapSelected(*ok_skin_click)*/;
+	okButton->SetBitmapSelected(*ok_skin_click);
 
 	//ok_button.Bind(wxEVT_BUTTON, self.initiate_connection);
 
@@ -114,3 +114,7 @@ void NewFrame::changeVolume(wxCommandEvent& evt)
 	
 }
 
+void NewFrame::KillFocus(wxFocusEvent& evt)
+{
+	this->SetFocus();
+}

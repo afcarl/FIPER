@@ -11,6 +11,7 @@ public:
 	NewFrame(int ID, const wxString& title, const wxPoint& pos, const wxSize& size, wxWindow* parent);
 
 	void changeVolume(wxCommandEvent& evt);
+	void KillFocus(wxFocusEvent& evt);
 	wxBitmapButton* okButton;
 	wxBitmapButton* cancelButton;
 private:
