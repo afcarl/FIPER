@@ -11,8 +11,8 @@ import cv2
 
 
 # Ports
-STREAM_SERVER_PORT = 1235
 MESSAGE_SERVER_PORT = 1234
+STREAM_SERVER_PORT = 1235
 
 # Stream's tick time:
 FPS = 15
@@ -151,7 +151,8 @@ class Commander(object):
         self.master_name = "Car"
         self.status_tag = status_tag
         self.commands = {}
-        self.commands.update(commands_dict)
+        if commands_dict:
+            self.commands.update(commands_dict)
         self.commands.update(commands)
 
         if "help" not in self.commands:

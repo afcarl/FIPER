@@ -1,7 +1,7 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
 # Project imports
-from car.component import Commander, Messaging, TCPStreamer
+from component import Commander, Messaging, TCPStreamer
 
 
 class TCPCar(object):
@@ -55,6 +55,5 @@ class TCPCar(object):
         if self.streamer is not None:
             self.streamer.teardown(0)
         if self.messenger is not None:
-            self.messenger.send(b"offline")
             self.messenger.teardown(2)
         self.online = False
