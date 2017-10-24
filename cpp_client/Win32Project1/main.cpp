@@ -15,9 +15,6 @@ EVT_PAINT(MainFrame::OnPaint)
 EVT_BUTTON(BUTTON_QUIT, MainFrame::OnExit) // Tell the OS to run MainFrame::OnExit when
 EVT_BUTTON(BUTTON_CONNECT, MainFrame::OnConnect) // Tell the OS to run MainFrame::OnExit when
 EVT_BUTTON(BUTTON_OPTIONS, MainFrame::OnOptions) // Tell the OS to run MainFrame::OnExit when
-EVT_LEFT_UP(MainFrame::Click)
-
-EVT_SET_FOCUS(MainFrame::SetFocus)
 EVT_ERASE_BACKGROUND(MainFrame::OnErase)
 EVT_MEDIA_LOADED(CONTROL_MEDIA, MainFrame::SongLoaded)
 EVT_MEDIA_FINISHED(CONTROL_MEDIA, MainFrame::SongLoaded)
