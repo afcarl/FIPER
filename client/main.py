@@ -12,35 +12,42 @@ import sys
 import time
 from wx import media
 
-
+#class Button(wx.BitmapButton):
+	
+#	def __init__(self):
+#		printf 'valami'
+		#self.Bind(wx.EVT)
+	
 class MainFrame(wx.Frame):
 
 	def __init__(self):
 		wx.Frame.__init__(self, None, title='FIPER')
 		# Get screen parameters
+		self.Show(False);
 		resolution = wx.DisplaySize()
 		self.width = resolution[0] 
 		self.height = resolution[1]
 		# Set App to FullScreen and get focus
-		self.ShowFullScreen(True)
+		#self.ShowFullScreen(True)
 		# Set Background color black
 		self.SetBackgroundColour('black')
+		
 		# Erase background from designated areas by DC ( for the buttons )
 		self.music()
+		self.place_buttons() 
+
 		self.Bind(wx.EVT_ERASE_BACKGROUND, self.set_background)
-		#
+		#self.Bind(wx.EVT_INIT_DIALOG,self.open_w)
 		
 		# self.Bind('<Escape>', self.quit_window(wx.EVT_BUTTON) )
 		# Place buttons on background
-		self.place_buttons() 
 		# Set Custom Cursor Image 
 		self.set_cursor()
-		
 		self.Bind(wx.EVT_SET_FOCUS, self.push_back_focus)
-		
+		#time.sleep(2)
 		# Show Application ( Grab Focus )
-		self.Show()
-
+		#self.Show(True)
+		
 		
 	def set_background(self, event): 
 		# Setting up Background with Transparency and ClippingRegion
@@ -425,12 +432,20 @@ class NewFrame(wx.Frame):
 		pass 
 	
 class Main(wx.App):
+
    
     def __init__(self):
+		
+
 		wx.App.__init__(self)
 		dlg = MainFrame()
-		dlg.Show()
 
+
+	#	time.sleep(2)
+		dlg.ShowFullScreen(True)
+
+
+	
 if __name__ == "__main__":
     app = Main()
     app.MainLoop()

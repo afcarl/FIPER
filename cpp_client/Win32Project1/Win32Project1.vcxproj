@@ -144,11 +144,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="FprButton.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MainFrame.cpp" />
     <ClCompile Include="NewFrame.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="FprButton.h" />
     <ClInclude Include="ids.h" />
     <ClInclude Include="MainFrame.h" />
     <ClInclude Include="NewFrame.h" />

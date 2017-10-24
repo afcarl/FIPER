@@ -19,13 +19,21 @@ EVT_LEFT_UP(MainFrame::Click)
 EVT_KILL_FOCUS(MainFrame::KillFocus)
 EVT_SET_FOCUS(MainFrame::SetFocus)
 EVT_ERASE_BACKGROUND(MainFrame::OnErase)
+EVT_MEDIA_LOADED(CONTROL_MEDIA, MainFrame::SongLoaded)
+EVT_MEDIA_FINISHED(CONTROL_MEDIA, MainFrame::SongLoaded)
 wxEND_EVENT_TABLE()
 
 wxBEGIN_EVENT_TABLE(NewFrame, wxFrame)
 EVT_PAINT(NewFrame::OnPaint)
 EVT_KEY_DOWN(NewFrame::key_stroke_callback)
+EVT_SLIDER(SLIDER_VOLUME, NewFrame::changeVolume)
 //EVT_FOCUS(NewFrame::KillFocus)
 wxEND_EVENT_TABLE()
+
+wxBEGIN_EVENT_TABLE(FprButton, wxFrame)
+EVT_PAINT(FprButton::OnPaint)
+wxEND_EVENT_TABLE()
+
 
 wxIMPLEMENT_APP(MyApp);
 bool MyApp::OnInit()

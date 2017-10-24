@@ -2,9 +2,10 @@
 
 
 MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& size)
-	: wxFrame(NULL, WINDOW_MAIN, title, pos, size), newFrame(NULL)
+	: wxFrame(nullptr, WINDOW_MAIN, title, pos, size), newFrame(nullptr), mediaPlayer(nullptr)
 {
 	wxDisplaySize(&width, &height);
+	
 	this->HeightDefault(height);
 	this->WidthDefault(width);
 	button_hide = false;
@@ -34,43 +35,9 @@ void MainFrame::OnConnect(wxCommandEvent& event)
 		int	y_pos = (this->height * 0.025);
 		int	width = (this->width * 0.95);
 		int	height = (this->height * 0.95);
-		this->Connect(WINDOW_CONNECT, wxEVT_CLOSE_WINDOW, wxCloseEventHandler(MainFrame::OnNewFrameClose));
+		//this->Connect(WINDOW_CONNECT, wxEVT_CLOSE_WINDOW, wxCloseEventHandler(MainFrame::OnNewFrameClose));
 		newFrame = new NewFrame(WINDOW_CONNECT, " C O N N E C T ", wxPoint(x_pos, y_pos), wxSize(width, height), this);
 		
-	//optionsWindow->Bind(wxEVT_KILL_FOCUS, &NewFrame::KillFocus
-
-	/*wxListBox connect_list(connectWindow, WINDOW_CONNECT, wxPoint(width*0.05, height*0.4),
-		wxSize(width*0.5, height*0.5), 0, NULL, wxTE_MULTILINE);
-	connect_list.SetBackgroundColour("White");*/
-
-
-	/*
-	cell_width = 150;
-	connect_list.ins
-	connect_list.InsertColumn(0, "CAR NAME", cell_width);
-		connect_list.InsertColumn(1, "IP ADDRESS", cell_width);
-		connect_list.InsertColumn(2, "AVAILABLE", cell_width);
-		connect_list.InsertColumn(3, "PING", cell_width);
-		connect_list.SetTextColour("white");
-
-		row_index = 0;
-		connect_list.InsertStringItem(row_index, "OpenRC Truggy");
-		connect_list.SetStringItem(row_index, 1, "192.168.1.11");
-		connect_list.SetStringItem(row_index, 2, "YES");
-		connect_list.SetStringItem(row_index, 3, "66");
-
-		row_index = 1;
-		connect_list.InsertStringItem(row_index, "Internet Exploder");
-		connect_list.SetStringItem(row_index, 1, "192.168.1.14");
-		connect_list.SetStringItem(row_index, 2, "NO");
-		connect_list.SetStringItem(row_index, 3, "0");
-
-		row_index = 2
-		connect_list.InsertStringItem(row_index, "ScrotumCutter")
-		connect_list.SetStringItem(row_index, 1, "192.168.0.21")
-		connect_list.SetStringItem(row_index, 2, "NO")
-		connect_list.SetStringItem(row_index, 3, "30")*/
-
 }
 void MainFrame::OnOptions(wxCommandEvent& event)
 {
@@ -100,6 +67,10 @@ void MainFrame::SetFocus(wxFocusEvent &event)
 
 void MainFrame::OnPaint(wxPaintEvent & evt)
 {
+	if (mediaPlayer == nullptr)
+	{
+		Music();
+	}
 	wxImage background_image("image/menu/bgnd.jpg", wxBITMAP_TYPE_JPEG);
 	wxImage fiper_logo("image/menu/fiper_logo.png", wxBITMAP_TYPE_PNG);
 	wxBitmap backgroundBm(background_image.Scale(width, height, wxImageResizeQuality::wxIMAGE_QUALITY_HIGH));
@@ -119,6 +90,7 @@ void MainFrame::OnPaint(wxPaintEvent & evt)
 	{
 		PlaceButtons();
 	}
+	
 }
 void MainFrame::SetButtonTextures()
 {
@@ -145,16 +117,15 @@ void MainFrame::SetButtonTextures()
 
 void MainFrame::PlaceButtons()
 {
-	//setButtonTextures();
 
-	
+	FprButton*  con_button = new FprButton(this, BUTTON_CONNECT, "CONNECT", wxPoint((width*0.64), (height*0.3)), wxSize(510, 130));
 	// Place buttons on the background and define the behaviour of them
 
-	connect_button = new wxBitmapButton(this, BUTTON_CONNECT, *connect_skin, 
+	/*connect_button = new wxBitmapButton(this, BUTTON_CONNECT, *connect_skin, 
 		wxPoint((width*0.64), (height*0.3)), 
 		wxSize(510, 130));
 	connect_button->SetBitmapHover(*connect_skin_hover);
-	connect_button->SetBitmapSelected(*connect_skin_click);
+	connect_button->SetBitmapSelected(*connect_skin_click);*/
 	//connect_button->Bind(wx.EVT_BUTTON, connect_window);
 	
 	options_button = new wxBitmapButton(this, BUTTON_OPTIONS, *options_skin,
@@ -181,20 +152,7 @@ void MainFrame::show_buttons()
 	quit_button->Show();*/
 	button_hide = false;
     PlaceButtons();
-	//wxClientDC dc(this);
-	/*dc.dr
-	wxImage background_image("image/menu/bgnd.jpg", wxBITMAP_TYPE_JPEG);
-	wxImage fiper_logo("image/menu/fiper_logo.png", wxBITMAP_TYPE_PNG);
-	wxBitmap backgroundBm(background_image.Scale(width, height, wxImageResizeQuality::wxIMAGE_QUALITY_HIGH));
-	wxBitmap logoBm(fiper_logo.Scale(width*0.4, height*0.3, wxImageResizeQuality::wxIMAGE_QUALITY_HIGH));
-	dc.Clear();
-	dc.DrawBitmap(backgroundBm, 0, 0, true);
-	dc.DrawBitmap(logoBm, 40, -10, false);
-	/*wxFont font(14, wxFONTFAMILY_TELETYPE, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false);
-	dc.SetFont(font);*/
-	/*dc.SetTextForeground("white");
-	dc.DrawText("Version: Pre-Alpha", this->width*0.005, this->height*0.97);
-	dc.DrawText("Contact: GAL.MATEO @ GMAIL.COM", width*0.77, height*0.97);*/
+
 }
 
 void MainFrame::HideButtons()
@@ -203,7 +161,7 @@ void MainFrame::HideButtons()
 	options_button->Hide();
 	quit_button->Hide();*/
 
-	connect_button->Destroy();
+	//connect_button->Destroy();
 	options_button->Destroy();
 	quit_button->Destroy();
 	button_hide = true;
@@ -247,20 +205,31 @@ MainFrame::~MainFrame()
 	delete cancel_skin_click;*/
 }
 
-void MainFrame::OnNewFrameClose(wxCloseEvent& event)
-{
-	newFrame = NULL;
-}
-
+//must override to dont do anything at erase!
 void MainFrame::OnErase(wxEraseEvent& event)
 {
-	/*wxClientDC* clientDC = NULL;
-	if (!event.GetDC())
-		clientDC = new wxClientDC(this);
-	wxDC* dc = clientDC ? clientDC : event.GetDC();
-	wxSize sz = GetClientSize();
-	wxEffects effects;
-	effects.TileBitmap(wxRect(0, 0, sz.x, sz.y), *dc, m_bitmap);
-	if (clientDC)
-		delete clientDC;*/
 }
+
+void MainFrame::Music()
+{
+	//we need different players in different OS
+	#if defined(WIN32)
+	wxString backend(wxMEDIABACKEND_WMP10);
+	#else
+	wxString backend(wxEmptyString);
+	#endif
+
+	mediaPlayer = new wxMediaCtrl(this, CONTROL_MEDIA,
+		wxString("audio/music/carpenter_brut.mp3"),
+		wxDefaultPosition,
+		wxSize(0, 0),
+		0,
+		backend);
+}
+
+
+void MainFrame::SongLoaded(wxMediaEvent& evt)
+{
+	mediaPlayer->Play();
+}
+
