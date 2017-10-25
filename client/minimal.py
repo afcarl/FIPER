@@ -19,8 +19,11 @@ def getsrv(ip, port, timeout=0):
             s.bind((ip, port))
             break
         except socket.error as E:
-            print("Socket error:", str(E))
-            time.sleep(1)
+            if E.errno == 98:
+                print("Socket not available yet... Waiting...")
+                time.sleep(1)
+            else:
+                raise
     s.listen(1)
     if timeout:
         s.settimeout(timeout)
