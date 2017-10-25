@@ -1,5 +1,6 @@
 from __future__ import unicode_literals, print_function, absolute_import
 
+import time
 import socket
 
 import numpy as np
@@ -13,7 +14,13 @@ STREAM_SERVER_PORT = 1235
 
 def getsrv(ip, port, timeout=0):
     s = socket.socket()
-    s.bind((ip, port))
+    while 1:
+        try:
+            s.bind((ip, port))
+            break
+        except socket.error as E:
+            print("Socket error:", str(E))
+            time.sleep(1)
     s.listen(1)
     if timeout:
         s.settimeout(timeout)
@@ -60,6 +67,9 @@ def display(mconn, dconn):
         key = cv2.waitKey(30)
         if key >= 0:
             mconn.send(str(key))
+        if key == 27:
+            cv2.destroyAllWindows()
+            break
 
 
 if __name__ == '__main__':
