@@ -10,6 +10,8 @@ import cv2
 
 
 FPS = 15
+RECEIVER_PORT = 1234
+STREAM_PORT = 1235
 
 
 class ChannelBase:
@@ -37,7 +39,7 @@ class ChannelBase:
 
 
 class Stream(ChannelBase):
-    port = 1235
+    port = STREAM_PORT
 
     _dev = cv2.VideoCapture(0)
 
@@ -62,7 +64,7 @@ class Stream(ChannelBase):
 
 
 class Receiver(ChannelBase):
-    port = 1234
+    port = RECEIVER_PORT
 
     def mainloop(self):
         tick = 1/FPS
