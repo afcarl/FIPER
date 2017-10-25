@@ -2,12 +2,16 @@
 #include<wx/wx.h>
 #include "ids.h"
 #include "MainFrame.h"
+#include <wx/slider.h>
+
 
 class NewFrame : public wxFrame
 {
 public:
 	NewFrame(int ID, const wxString& title, const wxPoint& pos, const wxSize& size, wxWindow* parent);
 
+	void changeVolume(wxCommandEvent& evt);
+	void KillFocus(wxFocusEvent& evt);
 	wxBitmapButton* okButton;
 	wxBitmapButton* cancelButton;
 private:
@@ -22,4 +26,6 @@ private:
 	void key_stroke_callback(wxKeyEvent& event);
 		wxDECLARE_EVENT_TABLE();
 
+	wxSize size;
+	wxSlider* slider;
 };

@@ -24,6 +24,9 @@
     <ClCompile Include="NewFrame.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="FprButton.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MainFrame.h">
@@ -36,6 +39,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ids.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FprButton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

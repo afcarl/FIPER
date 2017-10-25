@@ -2,7 +2,9 @@
 #include <wx/wxprec.h>
 #include <wx/wx.h>
 #include <wx/msgdlg.h>
+#include <wx/mediactrl.h>
 #include "NewFrame.h"
+#include "FprButton.h"
 #include "ids.h"
 
 class NewFrame;
@@ -14,10 +16,10 @@ public:
 	void KillFocus(wxFocusEvent &event);
 	void SetFocus(wxFocusEvent &event);
 	void Click(wxMouseEvent& event);
-	void OnNewFrameClose(wxCloseEvent& event);
 	void OnErase(wxEraseEvent& event);
 	~MainFrame();
 	void show_buttons();
+	void SongLoaded(wxMediaEvent& evt);
 private:
 	void SetButtonTextures();
 	void PlaceButtons();
@@ -27,6 +29,7 @@ private:
 	void OnExit(wxCommandEvent& event);
 	void OnConnect(wxCommandEvent& event);
 	void OnOptions(wxCommandEvent& event);
+	void Music();
 	int width;
 	int height;
 
@@ -34,6 +37,8 @@ private:
 	wxFrame* Buttons;
 	//windows
 	NewFrame* newFrame;
+
+	wxMediaCtrl* mediaPlayer;
 
 	//buttons
 	wxBitmapButton* connect_button;
