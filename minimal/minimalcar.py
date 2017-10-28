@@ -41,7 +41,7 @@ class ChannelBase:
 class Stream(ChannelBase):
     port = STREAM_PORT
 
-    _dev = cv2.VideoCapture(0)
+    _dev = cv2.VideoCapture(1)
 
     if _dev.read()[0] is False:
         print("Falling back to white noise stream!")
@@ -68,21 +68,22 @@ class Receiver(ChannelBase):
 
     def mainloop(self):
         tick = 1/FPS
-        self.sock.settimeout(tick)
+        self.sock.settimeout(1)
         self.running = True
+        print("Command job launched...")
         while self.running:
-            print("Command job launched...")
             try:
                 msg = self.sock.recv(1024)
             except socket.timeout:
-                pass
+                print("Timeout")
             except Exception as E:
                 print("Receiver caught:", str(E))
-                self.running = False
+                # self.running = False
             else:
                 if not msg or msg == "27":
                     print("Received exit message!")
                     self.running = False
+                print("Got:", msg)
                 time.sleep(tick)
         self.stop()
 
