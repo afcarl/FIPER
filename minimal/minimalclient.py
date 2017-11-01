@@ -1,6 +1,5 @@
-from __future__ import unicode_literals, print_function, absolute_import
+from __future__ import print_function
 
-import sys
 import time
 import socket
 
@@ -11,6 +10,9 @@ import cv2
 # Ports
 MESSAGE_SERVER_PORT = 1234
 STREAM_SERVER_PORT = 1235
+
+cfg = dict((line.split(": ") for line in open("minimalconfig.txt").read().split("\n") if line))
+cfg["webcam_resolution"] = tuple(map(int, cfg["webcam_resolution"].split("x")))
 
 
 def getsrv(ip, port, timeout=0):
@@ -66,7 +68,8 @@ def framestream(dconn, frameshape):
 
 def display(mconn, dconn):
     print("Displaying framestream...")
-    for frame in framestream(dconn, (480, 640, 3)):
+    res = cfg["webcam_resolution"]
+    for frame in framestream(dconn, (res[1], res[0], res[2])):
         cv2.imshow("OpenCV", frame)
         key = cv2.waitKey(30)
         if key >= 0:
@@ -77,5 +80,5 @@ def display(mconn, dconn):
 
 
 if __name__ == '__main__':
-    mc, dc = listen("127.0.0.1" if len(sys.argv) != 2 else sys.argv[-1])
+    mc, dc = listen(cfg["client_ip"])
     display(mc, dc)

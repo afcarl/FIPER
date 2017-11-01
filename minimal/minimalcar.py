@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import sys
 import time
 import socket
 import threading
@@ -12,6 +11,10 @@ import cv2
 FPS = 15
 RECEIVER_PORT = 1234
 STREAM_PORT = 1235
+
+
+cfg = dict((line.split(": ") for line in open("minimalconfig.txt").read().split("\n") if line))
+cfg["webcam_resolution"] = tuple(map(int, cfg["webcam_resolution"].split("x")))
 
 
 class ChannelBase:
@@ -40,15 +43,16 @@ class ChannelBase:
 
 class Stream(ChannelBase):
     port = STREAM_PORT
-
-    _dev = cv2.VideoCapture(0)
+    resol = cfg["webcam_resolution"]
+    resol = (resol[1], resol[0], resol[2])
+    _dev = cv2.VideoCapture(int(cfg["webcam_number"]))
 
     if _dev.read()[0] is False:
         print("Falling back to white noise stream!")
 
         @staticmethod
         def readframe():
-            return True, np.random.randn(480, 640, 3)
+            return True, np.random.randn(*Stream.resol)
     else:
         def readframe(self):
             return self._dev.read()
@@ -89,11 +93,10 @@ class Receiver(ChannelBase):
 
 
 def connect():
-    ip = sys.argv[-1] if len(sys.argv) == 2 else "127.0.0.1"
     print("Establishing connection...")
     while 1:
         try:
-            rec = Receiver(ip)
+            rec = Receiver(cfg["client_ip"])
         except KeyboardInterrupt:
             print("Exiting...")
             return None
@@ -101,7 +104,7 @@ def connect():
             print("Caught:", str(E))
             time.sleep(1)
         else:
-            stream = Stream(ip)
+            stream = Stream(cfg["client_ip"])
             return rec, stream
 
 
