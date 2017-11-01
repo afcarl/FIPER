@@ -41,7 +41,7 @@ class ChannelBase:
 class Stream(ChannelBase):
     port = STREAM_PORT
 
-    _dev = cv2.VideoCapture(1)
+    _dev = cv2.VideoCapture(0)
 
     if _dev.read()[0] is False:
         print("Falling back to white noise stream!")
