@@ -1,5 +1,6 @@
 from __future__ import unicode_literals, print_function, absolute_import
 
+import sys
 import time
 import socket
 
@@ -30,7 +31,7 @@ def getsrv(ip, port, timeout=0):
     return s
 
 
-def listen(myaddr="127.0.0.1"):
+def listen(myaddr):
     print("Awaiting connection...")
     mserver = getsrv(myaddr, MESSAGE_SERVER_PORT, timeout=1)
     dserver = getsrv(myaddr, STREAM_SERVER_PORT)
@@ -76,5 +77,5 @@ def display(mconn, dconn):
 
 
 if __name__ == '__main__':
-    mc, dc = listen()
+    mc, dc = listen("127.0.0.1" if len(sys.argv) != 2 else sys.argv[-1])
     display(mc, dc)
