@@ -1,3 +1,5 @@
 client_ip: 192.168.1.5
 webcam_number: 0
-webcam_resolution: 640x480x3
+webcam_resolution: 480x640x3
+message_port: 1234
+stream_port: 1235

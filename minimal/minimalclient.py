@@ -6,13 +6,7 @@ import socket
 import numpy as np
 import cv2
 
-
-# Ports
-MESSAGE_SERVER_PORT = 1234
-STREAM_SERVER_PORT = 1235
-
-cfg = dict((line.split(": ") for line in open("minimalconfig.txt").read().split("\n") if line))
-cfg["webcam_resolution"] = tuple(map(int, cfg["webcam_resolution"].split("x")))
+from minimalgeneric import configparse
 
 
 def getsrv(ip, port, timeout=0):
@@ -33,10 +27,10 @@ def getsrv(ip, port, timeout=0):
     return s
 
 
-def listen(myaddr):
+def listen(cfg):
     print("Awaiting connection...")
-    mserver = getsrv(myaddr, MESSAGE_SERVER_PORT, timeout=1)
-    dserver = getsrv(myaddr, STREAM_SERVER_PORT)
+    mserver = getsrv(cfg["client_ip"], cfg["message_port"], timeout=1)
+    dserver = getsrv(cfg["client_ip"], cfg["stream_port"])
 
     while 1:
         try:
@@ -56,20 +50,19 @@ def listen(myaddr):
     return mconn, dconn
 
 
-def framestream(dconn, frameshape):
-    datalen = np.prod(frameshape)
+def framestream(dconn, cfg):
+    datalen = np.prod(cfg["webcam_resolution"])
     data = b""
     while 1:
         while len(data) < datalen:
             data += dconn.recv(1024)
-        yield np.fromstring(data[:datalen], dtype="uint8").reshape(frameshape)
+        yield np.fromstring(data[:datalen], dtype="uint8").reshape(cfg["webcam_resolution"])
         data = data[datalen:]
 
 
-def display(mconn, dconn):
+def display(mconn, dconn, cfg):
     print("Displaying framestream...")
-    res = cfg["webcam_resolution"]
-    for frame in framestream(dconn, (res[1], res[0], res[2])):
+    for frame in framestream(dconn, cfg):
         cv2.imshow("OpenCV", frame)
         key = cv2.waitKey(30)
         if key >= 0:
@@ -80,5 +73,6 @@ def display(mconn, dconn):
 
 
 if __name__ == '__main__':
-    mc, dc = listen(cfg["client_ip"])
-    display(mc, dc)
+    config = configparse()
+    mc, dc = listen(config)
+    display(mc, dc, config)

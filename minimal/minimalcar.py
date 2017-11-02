@@ -7,14 +7,14 @@ import threading
 import numpy as np
 import cv2
 
+from minimalgeneric import configparse
 
 FPS = 15
 RECEIVER_PORT = 1234
 STREAM_PORT = 1235
 
 
-cfg = dict((line.split(": ") for line in open("minimalconfig.txt").read().split("\n") if line))
-cfg["webcam_resolution"] = tuple(map(int, cfg["webcam_resolution"].split("x")))
+cfg = configparse()
 
 
 class ChannelBase:
