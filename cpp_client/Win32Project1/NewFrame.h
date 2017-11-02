@@ -4,6 +4,7 @@
 #include "MainFrame.h"
 #include <wx/slider.h>
 
+class MainFrame;
 
 class NewFrame : public wxFrame
 {
@@ -12,10 +13,13 @@ public:
 
 	void changeVolume(wxCommandEvent& evt);
 	void KillFocus(wxFocusEvent& evt);
+	void OnExit(wxCommandEvent& evt);
 	wxBitmapButton* okButton;
 	wxBitmapButton* cancelButton;
 private:
 	void OnPaint(wxPaintEvent & evt);
+	void FadeOut();
+	MainFrame* getMain();
 	wxWindow* parent;
 	wxBitmap* ok_skin;
 	wxBitmap* ok_skin_hover;
@@ -28,4 +32,6 @@ private:
 
 	wxSize size;
 	wxSlider* slider;
+	wxSlider* sliderSFX;
+	//int id;
 };

@@ -1,5 +1,9 @@
 #include "FprButton.h"
 
+wxBEGIN_EVENT_TABLE(FprButton, wxFrame)
+EVT_PAINT(FprButton::OnPaint)
+wxEND_EVENT_TABLE()
+
 FprButton::FprButton(wxWindow* parent, int ID, const wxString& title, const wxPoint& pos, const wxSize& size)
 	: wxFrame(parent, ID, title, pos, size, wxCLIP_CHILDREN | wxSTAY_ON_TOP | wxFRAME_NO_TASKBAR | wxNO_BORDER | wxFRAME_SHAPED )
 		//| wxTRANSPARENT_WINDOW)

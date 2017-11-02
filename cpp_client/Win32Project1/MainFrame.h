@@ -13,13 +13,11 @@ class MainFrame : public wxFrame
 {
 public:
 	MainFrame(const wxString& title, const wxPoint& pos, const wxSize& size);
-	void KillFocus(wxFocusEvent &event);
-	void SetFocus(wxFocusEvent &event);
-	void Click(wxMouseEvent& event);
 	void OnErase(wxEraseEvent& event);
 	~MainFrame();
 	void show_buttons();
 	void SongLoaded(wxMediaEvent& evt);
+	void SetVolume(int vol);
 private:
 	void SetButtonTextures();
 	void PlaceButtons();

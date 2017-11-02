@@ -1,5 +1,15 @@
 #include "MainFrame.h"
 
+wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
+EVT_PAINT(MainFrame::OnPaint)
+EVT_BUTTON(BUTTON_QUIT, MainFrame::OnExit)
+EVT_BUTTON(BUTTON_CONNECT, MainFrame::OnConnect)
+EVT_BUTTON(BUTTON_OPTIONS, MainFrame::OnOptions)
+EVT_ERASE_BACKGROUND(MainFrame::OnErase)
+EVT_MEDIA_LOADED(CONTROL_MEDIA, MainFrame::SongLoaded)
+EVT_MEDIA_FINISHED(CONTROL_MEDIA, MainFrame::SongLoaded)
+wxEND_EVENT_TABLE()
+
 
 MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& size)
 	: wxFrame(nullptr, WINDOW_MAIN, title, pos, size), newFrame(nullptr), mediaPlayer(nullptr)
@@ -18,8 +28,14 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
 
 void MainFrame::OnExit(wxCommandEvent& event)
 {
-	//HideButtons();
-	Close(TRUE); // Tells the OS to quit running this process
+	HideButtons();
+	int x_pos = (this->width * 0.1);
+	int	y_pos = (this->height * 0.3);
+	int	width = (this->width * 0.5);
+	int	height = (this->height * 0.5);
+	newFrame = new NewFrame(WINDOW_QUIT, " Q U I T ", wxPoint(x_pos, y_pos), wxSize(width, height), this);
+
+	//Close(TRUE); // Tells the OS to quit running this process
 }
 
 void MainFrame::OnConnect(wxCommandEvent& event)
@@ -36,10 +52,10 @@ void MainFrame::OnConnect(wxCommandEvent& event)
 void MainFrame::OnOptions(wxCommandEvent& event)
 {
 	HideButtons();
-	int x_pos = (this->width * 0.025);
-	int	y_pos = (this->height * 0.025);
-	int	width = (this->width * 0.95);
-	int	height = (this->height * 0.95);
+	int x_pos = (this->width * 0.1);
+	int	y_pos = (this->height * 0.3);
+	int	width = (this->width * 0.55);
+	int	height = (this->height * 0.55);
 	newFrame = new NewFrame(WINDOW_OPTIONS, " O P T I O N S ", wxPoint(x_pos, y_pos), wxSize(width, height), this);
 
 	//Bind(wxEVT_KILL_FOCUS, &MainFrame::KillFocus);
@@ -47,15 +63,6 @@ void MainFrame::OnOptions(wxCommandEvent& event)
 	/*wxListBox connect_list(connectWindow, WINDOW_OPTIONS, wxPoint(width*0.05, height*0.4),
 		wxSize(width*0.5, height*0.5), 0, NULL, wxTE_MULTILINE);
 	connect_list.SetBackgroundColour("White");*/
-
-}
-void MainFrame::KillFocus(wxFocusEvent &event)
-{
-
-}
-
-void MainFrame::SetFocus(wxFocusEvent &event)
-{
 
 }
 
@@ -112,14 +119,14 @@ void MainFrame::SetButtonTextures()
 void MainFrame::PlaceButtons()
 {
 
-	FprButton*  con_button = new FprButton(this, BUTTON_CONNECT, "CONNECT", wxPoint((width*0.64), (height*0.3)), wxSize(510, 130));
+	//FprButton*  con_button = new FprButton(this, BUTTON_CONNECT, "CONNECT", wxPoint((width*0.64), (height*0.3)), wxSize(510, 130));
 	// Place buttons on the background and define the behaviour of them
 
-	/*connect_button = new wxBitmapButton(this, BUTTON_CONNECT, *connect_skin, 
+	connect_button = new wxBitmapButton(this, BUTTON_CONNECT, *connect_skin, 
 		wxPoint((width*0.64), (height*0.3)), 
 		wxSize(510, 130));
 	connect_button->SetBitmapHover(*connect_skin_hover);
-	connect_button->SetBitmapSelected(*connect_skin_click);*/
+	connect_button->SetBitmapSelected(*connect_skin_click);
 	//connect_button->Bind(wx.EVT_BUTTON, connect_window);
 	
 	options_button = new wxBitmapButton(this, BUTTON_OPTIONS, *options_skin,
@@ -155,7 +162,7 @@ void MainFrame::HideButtons()
 	options_button->Hide();
 	quit_button->Hide();*/
 
-	//connect_button->Destroy();
+	connect_button->Destroy();
 	options_button->Destroy();
 	quit_button->Destroy();
 	button_hide = true;
@@ -219,6 +226,11 @@ void MainFrame::Music()
 		wxSize(0, 0),
 		0,
 		backend);
+}
+void MainFrame::SetVolume(int vol)
+{
+	if(mediaPlayer)
+		mediaPlayer->SetVolume(((double)vol)/10);
 }
 
 
